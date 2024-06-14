@@ -1,4 +1,4 @@
-# Пример ORM
+import re
 from enum import Enum
 
 class FieldType(Enum):
@@ -24,6 +24,16 @@ class Field:
         self.foreign_key = foreign_key
 
 class ModelMeta(type):
+    def __new__(cls, name, bases, dct):
+        docstring = dct.get('__doc__')
+        if docstring:
+            field_definitions = re.findall(r'(\w+): FieldType\.(\w+)(, primary_key=True)?(, foreign_key=\'(.+?)\')?', docstring)
+            for field_name, field_type, primary_key, _, foreign_key in field_definitions:
+                primary_key = bool(primary_key)
+                field_type_enum = FieldType[field_type]
+                dct[field_name] = Field(field_type_enum, primary_key, foreign_key)
+        return super().__new__(cls, name, bases, dct)
+
     def __init__(cls, name, bases, dct):
         if not hasattr(cls, '_registry'):
             cls._registry = {}
@@ -61,6 +71,8 @@ class Model(metaclass=ModelMeta):
         for attr, field in self.__class__.__dict__.items():
             if isinstance(field, Field):
                 value = getattr(self, attr)
+                if isinstance(value, Enum):
+                    value = value.value
                 if value is None and field.primary_key:
                     continue
                 columns.append(attr)
@@ -96,67 +108,87 @@ class Model(metaclass=ModelMeta):
 
 # Пример моделей
 class Application(Model):
-    app_id = Field(FieldType.SERIAL, primary_key=True)
-    app_name = Field(FieldType.VARCHAR)
+    """
+    app_id: FieldType.SERIAL, primary_key=True
+    app_name: FieldType.VARCHAR
+    """
 
 class Users(Model):
-    user_id = Field(FieldType.SERIAL, primary_key=True)
-    full_name = Field(FieldType.VARCHAR)
-    email = Field(FieldType.VARCHAR)
-    password = Field(FieldType.VARCHAR)
-    registration_date = Field(FieldType.DATE)
-    app_availability = Field(FieldType.INT, foreign_key='application(app_id)')
+    """
+    user_id: FieldType.SERIAL, primary_key=True
+    full_name: FieldType.VARCHAR
+    email: FieldType.VARCHAR
+    password: FieldType.VARCHAR
+    registration_date: FieldType.DATE
+    app_availability: FieldType.INT, foreign_key='application(app_id)'
+    """
 
 class Modification(Model):
-    mod_id = Field(FieldType.SERIAL, primary_key=True)
-    mod_name = Field(FieldType.VARCHAR)
-    mod_desc = Field(FieldType.VARCHAR)
-    app_id = Field(FieldType.INT, foreign_key='application(app_id)')
+    """
+    mod_id: FieldType.SERIAL, primary_key=True
+    mod_name: FieldType.VARCHAR
+    mod_desc: FieldType.VARCHAR
+    app_id: FieldType.INT, foreign_key='application(app_id)'
+    """
 
 class Purchase(Model):
-    purchase_id = Field(FieldType.SERIAL, primary_key=True)
-    user_id = Field(FieldType.INT, foreign_key='users(user_id)')
-    mod_id = Field(FieldType.INT, foreign_key='modification(mod_id)')
-    purchase_date = Field(FieldType.DATE)
+    """
+    purchase_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)'
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)'
+    purchase_date: FieldType.DATE
+    """
 
 class Checks(Model):
-    check_id = Field(FieldType.SERIAL, primary_key=True)
-    purchase_id = Field(FieldType.INT, foreign_key='purchase(purchase_id)')
-    amount = Field(FieldType.DECIMAL)
-    payment_method = Field(FieldType.VARCHAR)
+    """
+    check_id: FieldType.SERIAL, primary_key=True
+    purchase_id: FieldType.INT, foreign_key='purchase(purchase_id)'
+    amount: FieldType.DECIMAL
+    payment_method: FieldType.VARCHAR
+    """
 
 class HWID(Model):
-    hwid_id = Field(FieldType.SERIAL, primary_key=True)
-    user_id = Field(FieldType.INT, foreign_key='users(user_id)')
-    processor = Field(FieldType.VARCHAR)
-    videocard = Field(FieldType.VARCHAR)
-    os_version = Field(FieldType.VARCHAR)
-    os_type = Field(FieldType.VARCHAR)
-    disks = Field(FieldType.VARCHAR)
-    network_card = Field(FieldType.VARCHAR)
+    """
+    hwid_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)'
+    processor: FieldType.VARCHAR
+    videocard: FieldType.VARCHAR
+    os_version: FieldType.VARCHAR
+    os_type: FieldType.VARCHAR
+    disks: FieldType.VARCHAR
+    network_card: FieldType.VARCHAR
+    """
 
 class Operation(Model):
-    operation_id = Field(FieldType.SERIAL, primary_key=True)
-    user_id = Field(FieldType.INT, foreign_key='users(user_id)')
-    operation_type = Field(FieldType.VARCHAR)
-    operation_date = Field(FieldType.DATETIME)
+    """
+    operation_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)'
+    operation_type: FieldType.VARCHAR
+    operation_date: FieldType.DATETIME
+    """
 
 class Subscription(Model):
-    subscription_id = Field(FieldType.SERIAL, primary_key=True)
-    user_id = Field(FieldType.INT, foreign_key='users(user_id)')
-    mod_id = Field(FieldType.INT, foreign_key='modification(mod_id)')
-    subscription_time = Field(FieldType.DATETIME)
+    """
+    subscription_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)'
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)'
+    subscription_time: FieldType.DATETIME
+    """
 
 class Token(Model):
-    token_id = Field(FieldType.SERIAL, primary_key=True)
-    user_id = Field(FieldType.INT, foreign_key='users(user_id)')
-    hwid_id = Field(FieldType.INT, foreign_key='hwid(hwid_id)')
-    last_login = Field(FieldType.DATETIME)
+    """
+    token_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)'
+    hwid_id: FieldType.INT, foreign_key='hwid(hwid_id)'
+    last_login: FieldType.DATETIME
+    """
 
 class Version(Model):
-    version_id = Field(FieldType.SERIAL, primary_key=True)
-    mod_id = Field(FieldType.INT, foreign_key='modification(mod_id)')
-    version_number = Field(FieldType.INT)
-    version_name = Field(FieldType.VARCHAR)
-    version_description = Field(FieldType.VARCHAR)
-    version_link = Field(FieldType.VARCHAR)
+    """
+    version_id: FieldType.SERIAL, primary_key=True
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)'
+    version_number: FieldType.INT
+    version_name: FieldType.VARCHAR
+    version_description: FieldType.VARCHAR
+    version_link: FieldType.VARCHAR
+    """

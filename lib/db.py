@@ -14,6 +14,7 @@ class Database:
 
         # Подключение к уже существующей или новой базе данных
         self.conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password, host=self.host, port=self.port)
+        self.conn.autocommit = True
 
     def _ensure_database(self):
         conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
@@ -42,32 +43,44 @@ class Database:
 
     def close(self):
         self.conn.close()
-
-    def create_sandbox(self, sandbox_name):
-        with self.get_cursor() as cur:
-            cur.execute(f"DROP DATABASE IF EXISTS {sandbox_name}")
-            cur.execute(f"CREATE DATABASE {sandbox_name}")
-
-    def clone_schema(self, source_db, target_db):
-        source_conn = psycopg2.connect(dbname=source_db, user=self.user, password=self.password, host=self.host, port=self.port)
-        target_conn = psycopg2.connect(dbname=target_db, user=self.user, password=self.password, host=self.host, port=self.port)
-
-        source_cur = source_conn.cursor()
-        target_cur = target_conn.cursor()
-
-        source_cur.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'""")
-        tables = source_cur.fetchall()
-
-        for table in tables:
-            source_cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table[0]}'")
-            columns = source_cur.fetchall()
-            columns_def = ", ".join([f"{col[0]} {col[1]}" for col in columns])
-            target_cur.execute(f"CREATE TABLE {table[0]} ({columns_def})")
-
-        source_conn.close()
-        target_conn.commit()
-        target_conn.close()
     
-    def create_sandbox_with_schema(self, sandbox_name, schema_source_db):
-        self.create_sandbox(sandbox_name)
-        self.clone_schema(schema_source_db, sandbox_name)
+    def create_db(self, db_name):
+        with psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                cursor.execute(f"CREATE DATABASE {db_name}")
+
+    def drop_db(self, db_name):
+        with psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                cursor.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='{db_name}'")
+                cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")
+
+    def create_dump(self, output_file, table_name=None):
+        with self.get_cursor() as cursor:
+            if table_name:
+                cursor.execute(f"COPY {table_name} TO STDOUT WITH CSV HEADER")
+            else:
+                cursor.execute("COPY (SELECT table_name FROM information_schema.tables WHERE table_schema='public') TO STDOUT WITH CSV HEADER")
+            with open(output_file, 'w') as f:
+                cursor.copy_expert(f"COPY {table_name or 'public'} TO STDOUT WITH CSV HEADER", f)
+
+    def restore_dump(self, input_file, table_name=None):
+        with self.get_cursor() as cursor:
+            with open(input_file, 'r') as f:
+                cursor.copy_expert(f"COPY {table_name or 'public'} FROM STDIN WITH CSV HEADER", f)
+        
+        self.conn.commit()
+
+    def delete_all_data(self, table_name):
+        with self.get_cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table_name}")
+
+    def replace_all_data(self, table_name, data):
+        with self.get_cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table_name}")
+            for row in data:
+                columns = ', '.join(row.keys())
+                values = ', '.join([f"'{str(v)}'" for v in row.values()])
+                cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES ({values})")
