@@ -14,7 +14,6 @@ class Database:
 
         # Подключение к уже существующей или новой базе данных
         self.conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password, host=self.host, port=self.port)
-        self.conn.autocommit = True
 
     def _ensure_database(self):
         conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
@@ -34,28 +33,34 @@ class Database:
         cursor = self.conn.cursor()
         try:
             yield cursor
-            self.conn.commit()
         except Exception as e:
             self.conn.rollback()
             raise e
+        else:
+            self.conn.commit()
         finally:
             cursor.close()
 
     def close(self):
         self.conn.close()
-    
+
     def create_db(self, db_name):
-        with psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port) as conn:
-            conn.autocommit = True
-            with conn.cursor() as cursor:
-                cursor.execute(f"CREATE DATABASE {db_name}")
+        conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        cursor.execute(f"CREATE DATABASE {db_name}")
+        cursor.close()
+        conn.close()
 
     def drop_db(self, db_name):
-        with psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port) as conn:
-            conn.autocommit = True
-            with conn.cursor() as cursor:
-                cursor.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='{db_name}'")
-                cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")
+        conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        # Завершение всех соединений с базой перед удалением
+        cursor.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='{db_name}' AND pid <> pg_backend_pid()")
+        cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")
+        cursor.close()
+        conn.close()
 
     def create_dump(self, output_file, table_name=None):
         with self.get_cursor() as cursor:
@@ -70,8 +75,6 @@ class Database:
         with self.get_cursor() as cursor:
             with open(input_file, 'r') as f:
                 cursor.copy_expert(f"COPY {table_name or 'public'} FROM STDIN WITH CSV HEADER", f)
-        
-        self.conn.commit()
 
     def delete_all_data(self, table_name):
         with self.get_cursor() as cursor:
