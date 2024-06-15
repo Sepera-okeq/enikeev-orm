@@ -1,5 +1,6 @@
 import psycopg2
 from contextlib import contextmanager
+import subprocess
 
 class Database:
     def __init__(self, dbname, user='postgres', password='secret6g2h2', host='localhost', port=5432):
@@ -62,19 +63,69 @@ class Database:
         cursor.close()
         conn.close()
 
+    def clone_schema(self, source_db, target_db):
+        """
+        Клонирует схему из исходной базы данных в целевую базу данных.
+        """
+        source_conn = psycopg2.connect(dbname=source_db, user=self.user, password=self.password, host=self.host, port=self.port)
+        target_conn = psycopg2.connect(dbname=target_db, user=self.user, password=self.password, host=self.host, port=self.port)
+        
+        source_conn.autocommit = True
+        target_conn.autocommit = True
+        
+        source_cur = source_conn.cursor()
+        target_cur = target_conn.cursor()
+
+        source_cur.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'""")
+        tables = source_cur.fetchall()
+
+        for table in tables:
+            source_cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table[0]}'")
+            columns = source_cur.fetchall()
+            columns_def = ", ".join([f"{col[0]} {col[1]}" for col in columns])
+            target_cur.execute(f"CREATE TABLE {table[0]} ({columns_def})")
+
+        source_cur.close()
+        target_cur.close()
+        source_conn.close()
+        target_conn.close()
+
     def create_dump(self, output_file, table_name=None):
-        with self.get_cursor() as cursor:
-            if table_name:
-                cursor.execute(f"COPY {table_name} TO STDOUT WITH CSV HEADER")
-            else:
-                cursor.execute("COPY (SELECT table_name FROM information_schema.tables WHERE table_schema='public') TO STDOUT WITH CSV HEADER")
-            with open(output_file, 'w') as f:
-                cursor.copy_expert(f"COPY {table_name or 'public'} TO STDOUT WITH CSV HEADER", f)
+        """
+        Создает дамп базы данных или заданной таблицы с использованием pg_dump.
+        """
+        cmd = [
+            'pg_dump',
+            '-h', self.host,
+            '-p', str(self.port),
+            '-U', self.user,
+            '-F', 'c',
+            '-f', output_file,
+            self.dbname
+        ]
+        if table_name:
+            cmd += ['-t', table_name]
+        
+        subprocess.run(cmd, check=True)
 
     def restore_dump(self, input_file, table_name=None):
-        with self.get_cursor() as cursor:
-            with open(input_file, 'r') as f:
-                cursor.copy_expert(f"COPY {table_name or 'public'} FROM STDIN WITH CSV HEADER", f)
+        """
+        Восстанавливает данные в базе данных из дампа с использованием pg_restore.
+        """
+        cmd = [
+            'pg_restore',
+            '-h', self.host,
+            '-p', str(self.port),
+            '-U', self.user,
+            '-d', self.dbname,
+            '-c',  # Очищает базу данных перед восстановлением
+        ]
+        if table_name:
+            cmd += ['-t', table_name]
+        
+        cmd += [input_file]
+        
+        subprocess.run(cmd, check=True)
 
     def delete_all_data(self, table_name):
         with self.get_cursor() as cursor:

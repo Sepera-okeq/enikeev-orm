@@ -12,6 +12,7 @@ from lib.data_generator import *
 def setup_sandbox(db_name):
     # Создание песочницы
     db = Database("postgres", user="postgres", password="secret6g2h2")
+    db.drop_db(db_name)
     db.create_db(db_name)
     db.clone_schema("testdb", db_name)
     db.close()
