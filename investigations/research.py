@@ -4,7 +4,6 @@
 
 import sys
 import os
-import shutil
 
 # Добавляем путь к родительской директории для корректного импорта модулей
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
