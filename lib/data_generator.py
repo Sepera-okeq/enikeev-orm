@@ -34,7 +34,7 @@ def generate_user_data(n, app_ids):
             email=random_email(255),
             password=random_string(100),
             registration_date=random_date(now - timedelta(days=730), now).date(),
-            app_availability=random_int(1, 100)
+            app_availability=random.choice(app_ids)
         )
 
 def generate_modification_data(n, app_ids):
@@ -116,5 +116,5 @@ def generate_version_data(n, mod_ids):
             version_number=random_int(1, 10),
             version_name=random_string(50),
             version_description=random_string(255),
-            version_link=f"http://link{random_string(255)}.com"
+            version_link=f"http://link{random_string(240)}.com"[:255]  # ограничиваем длину строки до 255 символов
         )

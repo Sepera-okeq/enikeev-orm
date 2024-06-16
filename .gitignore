@@ -1,2 +1,3 @@
 *.pyc
 *.png
+source_db_dump.sql

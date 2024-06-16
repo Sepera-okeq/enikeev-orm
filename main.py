@@ -1,15 +1,39 @@
+import os
+from datetime import datetime, timedelta
 from lib.db import Database
-from lib.data_generator import *
-from lib.orm import *
+from lib.orm import (
+    Application,
+    Users,
+    Modification,
+    Purchase,
+    Checks,
+    HWID,
+    Operation,
+    Subscription,
+    Token,
+    Version
+)
+from lib.data_generator import (
+    generate_application_data,
+    generate_user_data,
+    generate_modification_data,
+    generate_purchase_data,
+    generate_check_data,
+    generate_hwid_data,
+    generate_operation_data,
+    generate_subscription_data,
+    generate_token_data,
+    generate_version_data
+)
 
-def main():
-    # Создание или подключение к основной базе данных
-    db = Database(dbname='testdb')  # Автоматически создается, если не существует
-    
-    # Создание таблиц
+def create_source_db_and_tables():
+    db_name = 'source_db'
+    db = Database(db_name)
+
+    # Cоздание таблиц
     Application.create_table(db)
-    Users.create_table(db)
     Modification.create_table(db)
+    Users.create_table(db)
     Purchase.create_table(db)
     Checks.create_table(db)
     HWID.create_table(db)
@@ -18,70 +42,94 @@ def main():
     Token.create_table(db)
     Version.create_table(db)
 
-    # Генерация и вставка данных
-    applications = generate_applications(10)
-    for app_data in applications:
-        app = Application(**app_data)
+    # После создания всех таблиц создаем связи many-to-many для Users
+    Users.create_many_to_many_tables(db)
+    
+    print(f"База данных '{db_name}' и таблицы успешно созданы.")
+
+    return db
+
+def generate_and_insert_data(db):
+    print("Генерация данных...")
+
+    # Генерация и вставка данных для Application
+    apps = list(generate_application_data(10))
+    for app in apps:
         app.save(db)
-    
-    # Получаем id созданных приложений
     app_ids = [app.app_id for app in Application.get_all(db)]
+    print(f"Сгенерировано {len(app_ids)} приложений")
 
-    users = generate_users(100, app_ids)
-    for user_data in users:
-        user = Users(**user_data)
+    # Генерация и вставка данных для Users
+    users = list(generate_user_data(100, app_ids))
+    for user in users:
         user.save(db)
-    
-    # Получаем id созданных пользователей
     user_ids = [user.user_id for user in Users.get_all(db)]
+    print(f"Сгенерировано {len(user_ids)} пользователей")
 
-    modifications = generate_modifications(50, app_ids)
-    for mod_data in modifications:
-        mod = Modification(**mod_data)
+    # Генерация и вставка данных для Modification
+    mods = list(generate_modification_data(50, app_ids))
+    for mod in mods:
         mod.save(db)
-
-    # Получаем id созданных модификаций
     mod_ids = [mod.mod_id for mod in Modification.get_all(db)]
+    print(f"Сгенерировано {len(mod_ids)} модификаций")
 
-    purchases = generate_purchases(100, user_ids, mod_ids)
-    for purchase_data in purchases:
-        purchase = Purchase(**purchase_data)
+    # Генерация и вставка данных для Purchase
+    purchases = list(generate_purchase_data(200, user_ids, mod_ids))
+    for purchase in purchases:
         purchase.save(db)
-
-    # Получаем id созданных покупок
     purchase_ids = [purchase.purchase_id for purchase in Purchase.get_all(db)]
+    print(f"Сгенерировано {len(purchase_ids)} покупок")
 
-    checks = generate_checks(100, purchase_ids)
-    for check_data in checks:
-        check = Checks(**check_data)
-        check.save(db)
+    # Генерация и вставка данных для Checks
+    checks = list(generate_check_data(200, purchase_ids))
+    for chk in checks:
+        chk.save(db)
+    print(f"Сгенерировано {len(checks)} чеков")
 
-    hwids = generate_hwids(100, user_ids)
-    for hwid_data in hwids:
-        hwid = HWID(**hwid_data)
-        hwid.save(db)
+    # Генерация и вставка данных для HWID
+    hwids = list(generate_hwid_data(100, user_ids))
+    for hw in hwids:
+        hw.save(db)
+    hwid_ids = [hw.hwid_id for hw in HWID.get_all(db)]
+    print(f"Сгенерировано {len(hwid_ids)} HWID записей")
 
-    operations = generate_operations(100, user_ids)
-    for operation_data in operations:
-        operation = Operation(**operation_data)
+    # Генерация и вставка данных для Operation
+    operations = list(generate_operation_data(300, user_ids))
+    for operation in operations:
         operation.save(db)
-
-    subscriptions = generate_subscriptions(100, user_ids, mod_ids)
-    for subscription_data in subscriptions:
-        subscription = Subscription(**subscription_data)
+    print(f"Сгенерировано {len(operations)} операций")
+        
+    # Генерация и вставка данных для Subscription
+    subscriptions = list(generate_subscription_data(150, user_ids, mod_ids))
+    for subscription in subscriptions:
         subscription.save(db)
-
-    tokens = generate_tokens(100, user_ids, purchase_ids)
-    for token_data in tokens:
-        token = Token(**token_data)
+    print(f"Сгенерировано {len(subscriptions)} подписок")
+    
+    # Генерация и вставка данных для Token
+    tokens = list(generate_token_data(100, user_ids, hwid_ids))
+    for token in tokens:
         token.save(db)
+    print(f"Сгенерировано {len(tokens)} токенов")
 
-    versions = generate_versions(100, mod_ids)
-    for version_data in versions:
-        version = Version(**version_data)
+    # Генерация и вставка данных для Version
+    versions = list(generate_version_data(50, mod_ids))
+    for version in versions:
         version.save(db)
+    print(f"Сгенерировано {len(versions)} версий")
 
-    db.close()
+    print("Данные сгенерированы и успешно вставлены.")
+
+def create_dump(db, output_file):
+    db.create_dump(output_file)
+    print(f"Дамп базы данных '{db.dbname}' создан в файле '{output_file}'.")
 
 if __name__ == "__main__":
-    main()  
+    # Шаг 1: Создание базы данных source_db и её таблиц
+    source_db = create_source_db_and_tables()
+
+    # Шаг 2: Генерация и вставка данных
+    generate_and_insert_data(source_db)
+
+    # Шаг 3: Создание дампа базы данных
+    dump_file = 'source_db_dump.sql'
+    create_dump(source_db, dump_file)

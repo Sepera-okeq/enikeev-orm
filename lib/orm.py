@@ -16,7 +16,7 @@ class OperationType(Enum):
     UPDATE_PROFILE = "UPDATE_PROFILE"
 
 class Field:
-    def __init__(self, type_, primary_key=False, foreign_key=None, max_length=None, min_value=None, max_value=None):
+    def __init__(self, type_, primary_key=False, foreign_key=None, max_length=None, min_value=None, max_value=None, many_to_many=False):
         if not isinstance(type_, FieldType):
             raise ValueError("Field type must be an instance of FieldType Enum")
         self.type = type_.value
@@ -25,19 +25,24 @@ class Field:
         self.max_length = max_length
         self.min_value = min_value
         self.max_value = max_value
+        self.many_to_many = many_to_many
 
 class ModelMeta(type):
     def __new__(cls, name, bases, dct):
         docstring = dct.get('__doc__')
         if docstring:
-            field_definitions = re.findall(r'(\w+): FieldType\.(\w+)(, primary_key=True)?(, foreign_key=\'(.+?)\')?(, max_length=(\d+))?(, min_value=(\d+))?(, max_value=(\d+))?', docstring)
-            for field_name, field_type, primary_key, _, foreign_key, _, max_length, _, min_value, _, max_value in field_definitions:
+            field_definitions = re.findall(
+                r'(\w+): FieldType\.(\w+)(, primary_key=True)?(, foreign_key=\'(.+?)\')?(, max_length=(\d+))?(, min_value=(\d+))?(, max_value=(\d+))?(, many_to_many=True)?',
+                docstring
+            )
+            for field_name, field_type, primary_key, _, foreign_key, _, max_length, _, min_value, _, max_value, many_to_many in field_definitions:
                 primary_key = bool(primary_key)
                 field_type_enum = FieldType[field_type]
                 max_length = int(max_length) if max_length else None
                 min_value = int(min_value) if min_value else None
                 max_value = int(max_value) if max_value else None
-                dct[field_name] = Field(field_type_enum, primary_key, foreign_key, max_length, min_value, max_value)
+                many_to_many = bool(many_to_many)
+                dct[field_name] = Field(field_type_enum, primary_key, foreign_key, max_length, min_value, max_value, many_to_many)
         return super().__new__(cls, name, bases, dct)
 
     def __init__(cls, name, bases, dct):
@@ -48,6 +53,9 @@ class ModelMeta(type):
         super(ModelMeta, cls).__init__(name, bases, dct)
 
 class Model(metaclass=ModelMeta):
+    primary_keys = {}  # глобальный словарь для хранения первичных ключей каждой таблицы
+    many_to_many_tables = []  # глобальный список для хранения таблиц many-to-many
+
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -58,6 +66,7 @@ class Model(metaclass=ModelMeta):
     @classmethod
     def create_table(cls, db):
         fields = []
+
         for attr, value in cls.__dict__.items():
             if isinstance(value, Field):
                 field_def = f'{attr} {value.type}'
@@ -65,11 +74,34 @@ class Model(metaclass=ModelMeta):
                     field_def = f'{attr} VARCHAR({value.max_length})'
                 if value.primary_key:
                     field_def += ' PRIMARY KEY'
+                    Model.primary_keys[cls.__name__.lower()] = attr  # сохраняем первичный ключ
                 if value.foreign_key:
                     field_def += f' REFERENCES {value.foreign_key}'
                 fields.append(field_def)
+                if value.many_to_many:
+                    Model.many_to_many_tables.append((cls.__name__.lower(), attr, value.foreign_key.split('(')[0], value.foreign_key.split('(')[1][:-1]))
 
         query = f'CREATE TABLE IF NOT EXISTS {cls.__name__.lower()} ({", ".join(fields)});'
+        with db.get_cursor() as cur:
+            cur.execute(query)
+
+    @classmethod
+    def create_many_to_many_tables(cls, db):
+        for table1, field1, table2, field2 in Model.many_to_many_tables:
+            cls.create_many_to_many_table(db, table1, table2, Model.primary_keys)
+
+    @staticmethod
+    def create_many_to_many_table(db, table1, table2, primary_keys):
+        table_name = f'{table1}_{table2}'
+        table1_pk = primary_keys[table1]
+        table2_pk = primary_keys[table2]
+        query = f'''
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            {table1_pk} INT REFERENCES {table1}({table1_pk}),
+            {table2_pk} INT REFERENCES {table2}({table2_pk}),
+            PRIMARY KEY ({table1_pk}, {table2_pk})
+        );
+        '''
         with db.get_cursor() as cur:
             cur.execute(query)
 
@@ -99,7 +131,7 @@ class Model(metaclass=ModelMeta):
         query = f'INSERT INTO {self.__class__.__name__.lower()} ({column_names}) VALUES ({placeholders}) RETURNING *;'
         with db.get_cursor() as cur:
             cur.execute(query, values)
-            if self.__class__.__dict__.get(columns[0]).primary_key:
+            if self.__class__.__dict__[columns[0]].primary_key:
                 setattr(self, columns[0], cur.fetchone()[0])
 
     @classmethod
@@ -129,6 +161,7 @@ class Users(Model):
     password: FieldType.VARCHAR, max_length=100
     registration_date: FieldType.DATE
     app_availability: FieldType.INT, foreign_key='application(app_id)', min_value=1, max_value=100
+    subscriptions: FieldType.INT, foreign_key='modification(mod_id)', many_to_many=True
     """
 
 class Modification(Model):
