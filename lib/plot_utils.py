@@ -18,22 +18,28 @@ def save_plot(x_values, y_values, labels, title, xlabel, ylabel, filename, forma
     :param formats: Список форматов для сохранения (например, ['png', 'svg']).
     :param figsize: Размер фигуры графика.
     """
+    
+    # Устанавливаем стили линий и маркеров для графика
     linestyles = ['-', '--', '-.', ':']
     markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*']
     plt.figure(figsize=figsize)
 
+    # Проходимся по каждому набору данных и строим линии
     for i, (x, y, label) in enumerate(zip(x_values, y_values, labels)):
         linestyle = linestyles[i % len(linestyles)]
         marker = markers[i % len(markers)] if len(x) < 10 else None
         plt.plot(x, y, label=label, linestyle=linestyle, marker=marker)
 
+    # Устанавливаем заголовок, подписи осей и легенду, включаем сетку
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend()
     plt.grid(True)
 
+    # Сохраняем график в указанных форматах
     for fmt in formats:
         plt.savefig(f'{filename}.{fmt}')
     
+    # Закрываем фигуру
     plt.close()
