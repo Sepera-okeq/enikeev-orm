@@ -165,7 +165,7 @@ def research_generate_time():
 
     # Времена генерации данных для разных таблиц
     y_values.append([measure_generate_time(Application, n) for n in range(100, 3001, 100)])
-    y_values.append([measure_generate_time(Users, n, [1,2,3]) for n in range(100, 3001, 100)])
+    y_values.append([measure_generate_time(Users, n, [1,2,3,4,5,6,7,8,9,10]) for n in range(100, 3001, 100)])
 
     # Строим графики
     save_plot(
@@ -185,7 +185,7 @@ def research_insert_time():
     with setup_sandbox("sandbox_testdb") as db:
         # Времена вставки данных
         y_values.append([measure_insert_time(db, Application, n) for n in range(100, 3001, 100)])
-        y_values.append([measure_insert_time(db, Users, n, [1,2,3]) for n in range(100, 3001, 100)])
+        y_values.append([measure_insert_time(db, Users, n, [1,2,3,4,5,6,7,8,9,10]) for n in range(100, 3001, 100)])
 
     # Строим графики
     save_plot(
