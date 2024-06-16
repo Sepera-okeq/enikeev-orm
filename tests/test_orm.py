@@ -62,8 +62,8 @@ def setup_and_teardown(db):
 
     yield
     
-    # Удаление всех данных из таблиц после каждого теста
-    tables = ['users', 'application', 'modification', 'purchase', 'checks', 'hwid', 'operation', 'subscription', 'token', 'version']
+    # Удаление данных в правильной последовательности для избежания ошибкок внешнего ключа
+    tables = ['checks', 'purchase', 'subscription', 'token', 'operation', 'hwid', 'version', 'users_modification', 'modification', 'users', 'application']
     for table in tables:
         db.delete_all_data(table)
 
@@ -183,7 +183,7 @@ def test_checks_insert(db):
 
     all_checks = Checks.get_all(db)
     assert len(all_checks) == 1
-    assert all_checks[0].amount == 99.99
+    assert float(all_checks[0].amount) == 99.99
 
 def test_hwid_insert(db):
     app = Application(app_name="Test Application")
@@ -345,14 +345,17 @@ def test_many_to_many_insert(db):
     app_id = app.app_id
 
     mod = Modification(
+        mod_id = "666",
         mod_name="Test Modification",
         mod_desc="A test modification.",
         app_id=app_id
     )
     mod.save(db)
-    mod_id = mod.mod_id
+    print(Modification.get_all(db))
+    mod_id = Modification.get_all(db)[0].mod_id
 
     user = Users(
+        user_id="666",
         full_name="John Doe",
         email="john.doe@example.com",
         password="password",
@@ -360,11 +363,11 @@ def test_many_to_many_insert(db):
         app_availability=app_id
     )
     user.save(db)
-    user_id = user.user_id
+    user_id = Users.get_all(db)[0].user_id
     
     with db.get_cursor() as cursor:
         cursor.execute(
-            f"INSERT INTO users_modification (users_user_id, modification_mod_id) VALUES ({user_id}, {mod_id})"
+            f"INSERT INTO users_modification (user_id, mod_id) VALUES ({user_id}, {mod_id})"
         )
     
     with db.get_cursor() as cursor:
@@ -374,7 +377,6 @@ def test_many_to_many_insert(db):
         assert mm_records[0][0] == user_id
         assert mm_records[0][1] == mod_id
 
-# Использование данных из data_generator
 def test_generate_data(db):
     apps = list(generate_application_data(1))
     for app in apps:
@@ -395,24 +397,26 @@ def test_generate_data(db):
     purchases = list(generate_purchase_data(1, user_ids, mod_ids))
     for purchase in purchases:
         purchase.save(db)
+    purchase_ids = [purchase.purchase_id for purchase in Purchase.get_all(db)]
 
-    checks = list(generate_check_data(1, [purchases[0].purchase_id]))
+    checks = list(generate_check_data(1, purchase_ids))
     for chk in checks:
         chk.save(db)
 
     hwids = list(generate_hwid_data(1, user_ids))
     for hw in hwids:
         hw.save(db)
+    hwid_ids = [hw.hwid_id for hw in HWID.get_all(db)]
 
     operations = list(generate_operation_data(1, user_ids))
     for operation in operations:
         operation.save(db)
-        
+
     subscriptions = list(generate_subscription_data(1, user_ids, mod_ids))
     for subscription in subscriptions:
         subscription.save(db)
     
-    tokens = list(generate_token_data(1, user_ids, hwids))
+    tokens = list(generate_token_data(1, user_ids, hwid_ids))
     for token in tokens:
         token.save(db)
 
