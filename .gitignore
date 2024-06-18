@@ -1,3 +1,7 @@
+source_db_dump.sql
 *.pyc
 *.png
-source_db_dump.sql
+*__pycache__/
+*pytest_cache/
+orm/combined_files.txt
+orm/combined_files.txt

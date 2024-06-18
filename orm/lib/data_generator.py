@@ -214,4 +214,3 @@ def generate_version_data(n, mod_ids):
             version_description=random_string(255),
             version_link=f"http://link{random_string(240)}.com"[:255]  # ограничиваем длину строки до 255 символов
         )
-

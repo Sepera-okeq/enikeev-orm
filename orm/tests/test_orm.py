@@ -345,17 +345,16 @@ def test_many_to_many_insert(db):
     app_id = app.app_id
 
     mod = Modification(
-        mod_id = "666",
+        mod_id="1",
         mod_name="Test Modification",
         mod_desc="A test modification.",
         app_id=app_id
     )
     mod.save(db)
-    print(Modification.get_all(db))
-    mod_id = Modification.get_all(db)[0].mod_id
+    mod_id = mod.mod_id
 
     user = Users(
-        user_id="666",
+        user_id="1",
         full_name="John Doe",
         email="john.doe@example.com",
         password="password",
@@ -363,7 +362,7 @@ def test_many_to_many_insert(db):
         app_availability=app_id
     )
     user.save(db)
-    user_id = Users.get_all(db)[0].user_id
+    user_id = user.user_id
     
     with db.get_cursor() as cursor:
         cursor.execute(
@@ -434,3 +433,56 @@ def test_generate_data(db):
     assert len(Subscription.get_all(db)) == 1
     assert len(Token.get_all(db)) == 1
     assert len(Version.get_all(db)) == 1
+
+def test_filter_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    filtered_users = Users.filter(db, full_name="John Doe")
+    assert len(filtered_users) == 1
+    assert filtered_users[0].email == "john.doe@example.com"
+
+def test_update_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        user_id="47",
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    user.update(db, email="john.doe_new@example.com")
+    updated_user = Users.filter(db, full_name="John Doe")[0]
+    assert updated_user.email == "john.doe_new@example.com"
+
+def test_delete_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        user_id="999",
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    user.delete(db)
+    users = Users.get_all(db)
+    assert len(users) == 0

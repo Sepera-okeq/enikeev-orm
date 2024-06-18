@@ -1,0 +1,1738 @@
+Файл main.py:
+
+from lib.db import Database
+from lib.orm import (
+    Application,
+    Users,
+    Modification,
+    Purchase,
+    Checks,
+    HWID,
+    Operation,
+    Subscription,
+    Token,
+    Version
+)
+from lib.data_generator import (
+    generate_application_data,
+    generate_user_data,
+    generate_modification_data,
+    generate_purchase_data,
+    generate_check_data,
+    generate_hwid_data,
+    generate_operation_data,
+    generate_subscription_data,
+    generate_token_data,
+    generate_version_data
+)
+
+def create_source_db_and_tables():
+    """
+    Создание базы данных 'source_db' и её таблиц.
+
+    :return: Объект Database для созданной базы данных.
+    """
+    db_name = 'source_db'
+    db = Database(db_name)
+
+    # Создание таблиц для всех моделей
+    Application.create_table(db)
+    Modification.create_table(db)
+    Users.create_table(db)
+    Purchase.create_table(db)
+    Checks.create_table(db)
+    HWID.create_table(db)
+    Operation.create_table(db)
+    Subscription.create_table(db)
+    Token.create_table(db)
+    Version.create_table(db)
+
+    # Создание таблиц many-to-many для Users после создания всех таблиц
+    Users.create_many_to_many_tables(db)
+    
+    print(f"База данных '{db_name}' и таблицы успешно созданы.")
+    return db
+
+def generate_and_insert_data(db):
+    """
+    Генерация и вставка данных в базу данных.
+
+    :param db: Объект Database для подключения к базе данных.
+    """
+    print("Генерация данных...")
+
+    # Генерация и вставка данных для модели Application
+    apps = list(generate_application_data(10))
+    for app in apps:
+        app.save(db)
+    app_ids = [app.app_id for app in Application.get_all(db)]
+    print(f"Сгенерировано {len(app_ids)} приложений")
+
+    # Генерация и вставка данных для модели Users
+    users = list(generate_user_data(100, app_ids))
+    for user in users:
+        user.save(db)
+    user_ids = [user.user_id for user in Users.get_all(db)]
+    print(f"Сгенерировано {len(user_ids)} пользователей")
+
+    # Генерация и вставка данных для модели Modification
+    mods = list(generate_modification_data(50, app_ids))
+    for mod in mods:
+        mod.save(db)
+    mod_ids = [mod.mod_id for mod in Modification.get_all(db)]
+    print(f"Сгенерировано {len(mod_ids)} модификаций")
+
+    # Генерация и вставка данных для модели Purchase
+    purchases = list(generate_purchase_data(200, user_ids, mod_ids))
+    for purchase in purchases:
+        purchase.save(db)
+    purchase_ids = [purchase.purchase_id for purchase in Purchase.get_all(db)]
+    print(f"Сгенерировано {len(purchase_ids)} покупок")
+
+    # Генерация и вставка данных для модели Checks
+    checks = list(generate_check_data(200, purchase_ids))
+    for chk in checks:
+        chk.save(db)
+    print(f"Сгенерировано 200 чеков")
+
+    # Генерация и вставка данных для модели HWID
+    hwids = list(generate_hwid_data(100, user_ids))
+    for hw in hwids:
+        hw.save(db)
+    hwid_ids = [hw.hwid_id for hw in HWID.get_all(db)]
+    print(f"Сгенерировано {len(hwid_ids)} HWID записей")
+
+    # Генерация и вставка данных для модели Operation
+    operations = list(generate_operation_data(300, user_ids))
+    for operation in operations:
+        operation.save(db)
+    print(f"Сгенерировано {len(operations)} операций")
+        
+    # Генерация и вставка данных для модели Subscription
+    subscriptions = list(generate_subscription_data(150, user_ids, mod_ids))
+    for subscription in subscriptions:
+        subscription.save(db)
+    print(f"Сгенерировано {len(subscriptions)} подписок")
+    
+    # Генерация и вставка данных для модели Token
+    tokens = list(generate_token_data(100, user_ids, hwid_ids))
+    for token in tokens:
+        token.save(db)
+    print(f"Сгенерировано {len(tokens)} токенов")
+
+    # Генерация и вставка данных для модели Version
+    versions = list(generate_version_data(50, mod_ids))
+    for version in versions:
+        version.save(db)
+    print(f"Сгенерировано {len(versions)} версий")
+
+    print("Данные сгенерированы и успешно вставлены.")
+
+def create_dump(db, output_file):
+    """
+    Создание дампа базы данных и сохранение его в файл.
+
+    :param db: Объект Database для подключения к базе данных.
+    :param output_file: Имя файла для сохранения дампа.
+    """
+    db.create_dump(output_file)
+    print(f"Дамп базы данных '{db.dbname}' создан в файле '{output_file}'.")
+
+if __name__ == "__main__":
+    db = create_source_db_and_tables()
+    generate_and_insert_data(db)
+    create_dump(db, "source_db_dump.sql")
+Файл investigations/__init__.py:
+
+
+Файл investigations/research.py:
+
+import sys
+import os
+
+# Добавляем путь к родительской директории для корректного импорта модулей
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+
+import re
+import sys
+import os
+import timeit
+import matplotlib.pyplot as plt
+from lib.data_generator import *
+from lib.db import Database
+from lib.orm import *
+from lib.plot_utils import save_plot
+
+# Настройка параметров исследования
+DATABASE_NAME = 'research_db'
+TABLES = [Application, Users, Modification, Purchase, Checks, HWID, Operation, Subscription, Token, Version]
+ROW_COUNTS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000]
+REPEAT = 3  # Количество повторов для каждого замера
+
+def setup_sandbox(db_name):
+    with Database("postgres", user="postgres", password="secret6g2h2") as db:
+        db.drop_db(db_name)
+        db.create_db(db_name)
+        db.clone_schema("source_db", db_name)
+    return Database(db_name, user="postgres", password="secret6g2h2")
+
+def generate_data_for_table(table, count):
+    generator_map = {
+        Application: generate_application_data,
+        Users: lambda n: generate_user_data(n, [1]),
+        Modification: lambda n: generate_modification_data(n, [1]),
+        Purchase: lambda n: generate_purchase_data(n, [1], [1]),
+        Checks: lambda n: generate_check_data(n, [1]),
+        HWID: lambda n: generate_hwid_data(n, [1]),
+        Operation: lambda n: generate_operation_data(n, [1]),
+        Subscription: lambda n: generate_subscription_data(n, [1], [1]),
+        Token: lambda n: generate_token_data(n, [1], [1]),
+        Version: lambda n: generate_version_data(n, [1])
+    }
+    try:
+        generated_data = list(generator_map[table](count))
+        if not isinstance(generated_data[0], table):
+            raise ValueError(f"Generated data does not match expected table type {table.__name__}")
+        return generated_data
+    except KeyError as e:
+        raise KeyError(f"No data generator defined for table {table.__name__}") from e
+
+def get_primary_key_name(model_class):
+    docstring = model_class.__doc__
+    if docstring:
+        field_definitions = re.findall(
+            r'(\w+): FieldType\.(\w+)(, primary_key=True)?',
+            docstring
+        )
+        for field_name, field_type, primary_key in field_definitions:
+            if primary_key:
+                return field_name
+    raise ValueError(f"No primary key found for model {model_class.__name__}")
+
+def log_sql_error(fn):
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            print(f"Error performing {fn.__name__}: {e}")
+            if len(args) > 0 and hasattr(args[0], 'query') and hasattr(args[0], 'params'):
+                print(f"SQL query: {args[0].query} with params {args[0].params}")
+            raise
+    return wrapper
+
+@log_sql_error
+def save_record(record, db):
+    record.save(db)
+
+@log_sql_error
+def filter_records(table, db, **conditions):
+    return table.filter(db, **conditions)
+
+@log_sql_error
+def update_record(record, db, **updates):
+    record.update(db, **updates)
+
+@log_sql_error
+def delete_record(record, db):
+    record.delete(db)
+
+@log_sql_error
+def get_all_records(table, db):
+    return table.get_all(db)
+
+def measure_time(operation, *args, **kwargs):
+    def wrapper():
+        return operation(*args, **kwargs)
+    return timeit.timeit(wrapper, number=1)
+
+def perform_queries(db, table):
+    primary_key = get_primary_key_name(table)
+    data = generate_data_for_table(table, 1)[0]
+
+    print(f"Generated Data for {table.__name__}: {data.__dict__}")
+    results = []
+
+    try:
+        # Timing INSERT operation
+        print(f"Inserting data into {table.__name__}")
+        duration = measure_time(save_record, data, db)
+        results.append(duration)
+
+        # Timing SELECT all operation with limit
+        print(f"Selecting all data from {table.__name__}")
+        duration = measure_time(get_all_records, table, db)
+        results.append(duration)
+
+        # Timing SELECT COUNT(*)
+        print(f"Counting all records in {table.__name__}")
+        duration = measure_time(lambda: len(get_all_records(table, db)))
+        results.append(duration)
+
+        # Timing SELECT with a condition that never matches
+        print(f"Selecting with condition that never matches from {table.__name__}")
+        duration = measure_time(filter_records, table, db, **{primary_key: -1})
+        results.append(duration)
+        
+        # Timing SELECT with a specific primary key
+        records = get_all_records(table, db)
+        if records:
+            match_id = getattr(records[0], primary_key)
+            print(f"Selecting with primary key from {table.__name__}")
+            duration = measure_time(filter_records, table, db, **{primary_key: match_id})
+            results.append(duration)
+
+            # Timing SELECT with LIKE clause
+            if isinstance(records[0].__dict__[primary_key], str) and records[0].__dict__[primary_key]:
+                like_value = f"{records[0].__dict__[primary_key][0]}%"
+                print(f"Selecting with LIKE clause from {table.__name__}")
+                duration = measure_time(filter_records, table, db, **{primary_key: like_value})
+                results.append(duration)
+
+            # Timing UPDATE operation
+            if len(records[0].__dict__.keys()) > 1:
+                updated_field = {list(records[0].__dict__.keys())[1]: "temp_value"}
+                print(f"Updating data in {table.__name__}")
+                duration = measure_time(update_record, records[0], db, **updated_field)
+                results.append(duration)
+
+            # Timing DELETE with a specific primary key
+            print(f"Deleting data from {table.__name__}")
+            duration = measure_time(delete_record, records[0], db)
+            results.append(duration)
+        
+        # Additional queries for a total of 10 queries
+        # Additional INSERT
+        print(f"Additional insert into {table.__name__}")
+        duration = measure_time(save_record, data, db)
+        results.append(duration)
+
+        # Additional SELECT with unique constraints
+        if records:
+            unique_match = filter_records(table, db, **{primary_key: getattr(records[0], primary_key)})
+            print(f"Additional select with unique constraints from {table.__name__}")
+            duration = measure_time(filter_records, table, db, **{primary_key: getattr(records[0], primary_key)})
+            results.append(duration)
+
+        # Additional DELETE with unique constraints
+        if unique_match:
+            print(f"Additional delete with unique constraints from {table.__name__}")
+            duration = measure_time(delete_record, unique_match[0], db)
+            results.append(duration)
+
+    except Exception as e:
+        print(f"Error performing query on table '{table.__name__}': {e}")
+
+    return results
+
+def measure_generate_time(model_class, n):
+    data_gen_map = {
+        Application: lambda n: generate_application_data(n),
+        Users: lambda n: generate_user_data(n, [1]),
+        Modification: lambda n: generate_modification_data(n, [1]),
+        Purchase: lambda n: generate_purchase_data(n, [1], [1]),
+        Checks: lambda n: generate_check_data(n, [1]),
+        HWID: lambda n: generate_hwid_data(n, [1]),
+        Operation: lambda n: generate_operation_data(n, [1]),
+        Subscription: lambda n: generate_subscription_data(n, [1], [1]),
+        Token: lambda n: generate_token_data(n, [1], [1]),
+        Version: lambda n: generate_version_data(n, [1])
+    }
+
+    def generate_data():
+        list(data_gen_map[model_class](n))
+
+    return timeit.timeit(generate_data, number=1)
+
+def measure_query_times():
+    db = setup_sandbox(DATABASE_NAME)
+    results = {}
+    for table in TABLES:
+        times_per_size = {}
+        for count in ROW_COUNTS:
+            data = generate_data_for_table(table, count)
+            with db.get_cursor() as cur:
+                table_name = table.__name__.lower()
+                cur.execute(f'DELETE FROM {table_name}')
+                for record in data:
+                    save_record(record, db)
+
+            query_times = perform_queries(db, table)
+            for i, query_time in enumerate(query_times):
+                if i not in times_per_size:
+                    times_per_size[i] = []
+                times_per_size[i].append(query_time)
+        results[table.__name__] = times_per_size
+    return results
+
+def plot_results(results, plot_title, x_label, y_label, filename):
+    labels = list(results.keys())
+    x_values = ROW_COUNTS
+    y_values = [results[label] for label in labels]
+
+    save_plot(x_values, y_values, labels, plot_title, x_label, y_label, filename)
+
+def plot_individual_query_times(results):
+    for table, times_per_size in results.items():
+        for query_index, times in times_per_size.items():
+            save_plot(
+                ROW_COUNTS,
+                times,
+                [f"Запрос {query_index}"],
+                f"Время выполнения запроса {query_index} для {table}",
+                'Количество строк',
+                'Время выполнения (с)',
+                f"{table}_query_{query_index}_times"
+            )
+
+if __name__ == "__main__":
+    generation_times = measure_generate_time
+    plot_results(generation_times(), "Время генерации данных", "Количество строк", "Время (с)", "generation_times")
+
+    query_times = measure_query_times()
+    plot_individual_query_times(query_times)
+Файл combine_files.sh:
+
+#!/bin/bash
+
+# Проверяем, передана ли папка как аргумент
+if [ -z "$1" ]; then
+  echo "Использование: $0 <папка>"
+  exit 1
+fi
+
+# Проверяем, существует ли папка
+if [ ! -d "$1" ]; then
+  echo "Ошибка: Папка '$1' не найдена."
+  exit 1
+fi
+
+# Создаем выходной файл (можно изменить название)
+output_file="combined_files.txt"
+
+# Проходим по всем файлам в папке (рекурсивно)
+find "$1" -type f -print0 | while IFS= read -r -d $'\0' file; do
+
+  # Получаем относительный путь до файла
+  relative_path="${file#$1/}"
+
+  # Добавляем информацию о файле и его содержимое в выходной файл
+  echo "Файл ${relative_path}:" >> "$output_file"
+  echo "" >> "$output_file"
+  cat "$file" >> "$output_file"
+  echo "" >> "$output_file"
+
+done
+
+echo "Готово! Все файлы скомпилированы в '$output_file'."
+Файл lib/orm.py:
+
+import re
+from enum import Enum
+
+class FieldType(Enum):
+    INT = "INT"
+    SERIAL = "SERIAL"
+    VARCHAR = "VARCHAR"
+    DATE = "DATE"
+    DATETIME = "TIMESTAMP"
+    DECIMAL = "DECIMAL(10,2)"
+
+class OperationType(Enum):
+    LOGIN = "LOGIN"
+    LOGOUT = "LOGOUT"
+    PURCHASE = "PURCHASE"
+    UPDATE_PROFILE = "UPDATE_PROFILE"
+
+class Field:
+    def __init__(self, type_, primary_key=False, foreign_key=None, max_length=None, min_value=None, max_value=None, many_to_many=False):
+        if not isinstance(type_, FieldType):
+            raise ValueError("Field type must be an instance of FieldType Enum")
+        self.type = type_.value
+        self.primary_key = primary_key
+        self.foreign_key = foreign_key
+        self.max_length = max_length
+        self.min_value = min_value
+        self.max_value = max_value
+        self.many_to_many = many_to_many
+
+class ModelMeta(type):
+    def __new__(cls, name, bases, dct):
+        docstring = dct.get('__doc__')
+        if docstring:
+            field_definitions = re.findall(
+                r'(\w+): FieldType\.(\w+)(, primary_key=True)?(, foreign_key=\'(.+?)\')?(, max_length=(\d+))?(, min_value=(\d+))?(, max_value=(\d+))?(, many_to_many=True)?',
+                docstring
+            )
+            for field_name, field_type, primary_key, _, foreign_key, _, max_length, _, min_value, _, max_value, many_to_many in field_definitions:
+                primary_key = bool(primary_key)
+                field_type_enum = FieldType[field_type]
+                max_length = int(max_length) if max_length else None
+                min_value = int(min_value) if min_value else None
+                max_value = int(max_value) if max_value else None
+                many_to_many = bool(many_to_many)
+                dct[field_name] = Field(field_type_enum, primary_key, foreign_key, max_length, min_value, max_value, many_to_many)
+        return super().__new__(cls, name, bases, dct)
+
+    def __init__(cls, name, bases, dct):
+        if not hasattr(cls, '_registry'):
+            cls._registry = {}
+        else:
+            cls._registry[name] = cls
+        super(ModelMeta, cls).__init__(name, bases, dct)
+
+class Model(metaclass=ModelMeta):
+    primary_keys = {}  # глобальный словарь для хранения первичных ключей каждой таблицы
+    many_to_many_tables = []  # глобальный список для хранения таблиц many-to-many
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        for key, field in self.__class__.__dict__.items():
+            if isinstance(field, Field) and key not in kwargs:
+                setattr(self, key, None)
+
+    @classmethod
+    def create_table(cls, db):
+        fields = []
+
+        for attr, value in cls.__dict__.items():
+            if isinstance(value, Field):
+                field_def = f'{attr} {value.type}'
+                if value.max_length:
+                    field_def = f'{attr} VARCHAR({value.max_length})'
+                if value.primary_key:
+                    field_def += ' PRIMARY KEY'
+                    Model.primary_keys[cls.__name__.lower()] = attr  # сохраняем первичный ключ
+                if value.foreign_key:
+                    field_def += f' REFERENCES {value.foreign_key}'
+                fields.append(field_def)
+                if value.many_to_many:
+                    Model.many_to_many_tables.append((cls.__name__.lower(), attr, value.foreign_key.split('(')[0], value.foreign_key.split('(')[1][:-1]))
+
+        query = f'CREATE TABLE IF NOT EXISTS {cls.__name__.lower()} ({", ".join(fields)});'
+        with db.get_cursor() as cur:
+            cur.execute(query)
+
+    @classmethod
+    def create_many_to_many_tables(cls, db):
+        for table1, field1, table2, field2 in Model.many_to_many_tables:
+            cls.create_many_to_many_table(db, table1, table2, Model.primary_keys)
+
+    @staticmethod
+    def create_many_to_many_table(db, table1, table2, primary_keys):
+        table_name = f'{table1}_{table2}'
+        table1_pk = primary_keys[table1]
+        table2_pk = primary_keys[table2]
+        query = f'''
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            {table1_pk} INT REFERENCES {table1}({table1_pk}),
+            {table2_pk} INT REFERENCES {table2}({table2_pk}),
+            PRIMARY KEY ({table1_pk}, {table2_pk})
+        );
+        '''
+        with db.get_cursor() as cur:
+            cur.execute(query)
+
+    def extract_field_values(self):
+        columns = []
+        values = []
+        for attr, field in self.__class__.__dict__.items():
+            if isinstance(field, Field):
+                value = getattr(self, attr)
+                if isinstance(value, Enum):
+                    value = value.value
+                if value is None and field.primary_key:
+                    continue
+                columns.append(attr)
+                values.append(value)
+        return columns, values
+
+    def save(self, db):
+        columns, values = self.extract_field_values()
+
+        if not columns:
+            raise ValueError("No fields found to insert.")
+
+        column_names = ", ".join(columns)
+        placeholders = ", ".join(["%s"] * len(columns))
+
+        query = f'INSERT INTO {self.__class__.__name__.lower()} ({column_names}) VALUES ({placeholders}) RETURNING *;'
+        with db.get_cursor() as cur:
+            cur.execute(query, values)
+            returned_values = cur.fetchone()
+            for key, value in zip(columns, returned_values):
+                setattr(self, key, value)
+
+    @classmethod
+    def get_all(cls, db):
+        query = f'SELECT * FROM {cls.__name__.lower()};'
+        with db.get_cursor() as cur:
+            cur.execute(query)
+            records = cur.fetchall()
+            results = []
+            for record in records:
+                obj = cls(**dict(zip([col[0] for col in cur.description], record)))
+                results.append(obj)
+            return results
+
+    @classmethod
+    def filter(cls, db, **kwargs):
+        conditions = [f"{key} = %s" for key in kwargs.keys()]
+        query = f"SELECT * FROM {cls.__name__.lower()} WHERE {' AND '.join(conditions)}"
+
+        with db.get_cursor() as cur:
+            cur.execute(query, tuple(kwargs.values()))
+            records = cur.fetchall()
+            results = []
+            for record in records:
+                obj = cls(**dict(zip([col[0] for col in cur.description], record)))
+                results.append(obj)
+            return results
+
+    def delete(self, db):
+        pk_name = Model.primary_keys[self.__class__.__name__.lower()]
+        query = f"DELETE FROM {self.__class__.__name__.lower()} WHERE {pk_name} = %s"
+        with db.get_cursor() as cur:
+            cur.execute(query, (getattr(self, pk_name),))
+
+    def update(self, db, **kwargs):
+        pk_name = Model.primary_keys[self.__class__.__name__.lower()]
+        set_clause = ", ".join([f"{key} = %s" for key in kwargs.keys()])
+        query = f"UPDATE {self.__class__.__name__.lower()} SET {set_clause} WHERE {pk_name} = %s"
+        values = tuple(kwargs.values()) + (getattr(self, pk_name),)
+        with db.get_cursor() as cur:
+            cur.execute(query, values)
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+            # Для получения обновленных значений после выполнения запроса
+            query = f"SELECT * FROM {self.__class__.__name__.lower()} WHERE {pk_name} = %s"
+            cur.execute(query, (getattr(self, pk_name),))
+            updated_record = cur.fetchone()
+            if updated_record:
+                for key, value in zip([col[0] for col in cur.description], updated_record):
+                    setattr(self, key, value)
+
+# Пример моделей
+class Application(Model):
+    """
+    app_id: FieldType.SERIAL, primary_key=True
+    app_name: FieldType.VARCHAR, max_length=255
+    """
+
+class Users(Model):
+    """
+    user_id: FieldType.SERIAL, primary_key=True
+    full_name: FieldType.VARCHAR, max_length=100
+    email: FieldType.VARCHAR, max_length=255
+    password: FieldType.VARCHAR, max_length=100
+    registration_date: FieldType.DATE
+    app_availability: FieldType.INT, foreign_key='application(app_id)', min_value=1, max_value=100
+    subscriptions: FieldType.INT, foreign_key='modification(mod_id)', many_to_many=True
+    """
+
+class Modification(Model):
+    """
+    mod_id: FieldType.SERIAL, primary_key=True
+    mod_name: FieldType.VARCHAR, max_length=100
+    mod_desc: FieldType.VARCHAR, max_length=255
+    app_id: FieldType.INT, foreign_key='application(app_id)', min_value=1, max_value=100
+    """
+
+class Purchase(Model):
+    """
+    purchase_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)', min_value=1, max_value=100
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)', min_value=1, max_value=100
+    purchase_date: FieldType.DATE
+    """
+
+class Checks(Model):
+    """
+    check_id: FieldType.SERIAL, primary_key=True
+    purchase_id: FieldType.INT, foreign_key='purchase(purchase_id)', min_value=1, max_value=100
+    amount: FieldType.DECIMAL
+    payment_method: FieldType.VARCHAR, max_length=50
+    """
+
+class HWID(Model):
+    """
+    hwid_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)', min_value=1, max_value=100
+    processor: FieldType.VARCHAR, max_length=50
+    videocard: FieldType.VARCHAR, max_length=50
+    os_version: FieldType.VARCHAR, max_length=50
+    os_type: FieldType.VARCHAR, max_length=50
+    disks: FieldType.VARCHAR, max_length=50
+    network_card: FieldType.VARCHAR, max_length=50
+    """
+
+class Operation(Model):
+    """
+    operation_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)', min_value=1, max_value=100
+    operation_type: FieldType.VARCHAR, max_length=100
+    operation_date: FieldType.DATETIME
+    """
+
+class Subscription(Model):
+    """
+    subscription_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)', min_value=1, max_value=100
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)', min_value=1, max_value=100
+    subscription_time: FieldType.DATETIME
+    """
+
+class Token(Model):
+    """
+    token_id: FieldType.SERIAL, primary_key=True
+    user_id: FieldType.INT, foreign_key='users(user_id)', min_value=1, max_value=100
+    hwid_id: FieldType.INT, foreign_key='hwid(hwid_id)', min_value=1, max_value=100
+    last_login: FieldType.DATETIME
+    """
+
+class Version(Model):
+    """
+    version_id: FieldType.SERIAL, primary_key=True
+    mod_id: FieldType.INT, foreign_key='modification(mod_id)', min_value=1, max_value=100
+    version_number: FieldType.INT, min_value=1, max_value=10
+    version_name: FieldType.VARCHAR, max_length=50
+    version_description: FieldType.VARCHAR, max_length=255
+    version_link: FieldType.VARCHAR, max_length=255
+    """
+Файл lib/data_generator.py:
+
+import random
+import string
+from datetime import datetime, timedelta
+
+def random_string(max_length):
+    """
+    Генерация случайной строки заданной максимальной длины.
+
+    :param max_length: Максимальная длина строки.
+    :return: Случайная строка.
+    """
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for _ in range(random.randint(1, max_length)))
+
+def random_email(max_length):
+    """
+    Генерация случайного email с заданной максимальной длиной.
+
+    :param max_length: Максимальная длина email.
+    :return: Случайный email.
+    """
+    domains = ["example.com", "test.com", "mydomain.com"]
+    email = f"{random_string(5)}@{random.choice(domains)}"
+    return email[:max_length]
+
+def random_date(start, end):
+    """
+    Генерация случайной даты в заданном диапазоне.
+
+    :param start: Начальная дата диапазона.
+    :param end: Конечная дата диапазона.
+    :return: Случайная дата.
+    """
+    delta = end - start
+    return start + timedelta(days=random.randint(0, delta.days))
+
+def random_int(min_val, max_val):
+    """
+    Генерация случайного целого числа в заданном диапазоне.
+
+    :param min_val: Минимальное значение (включительно).
+    :param max_val: Максимальное значение (включительно).
+    :return: Случайное целое число.
+    """
+    return random.randint(min_val, max_val)
+
+def generate_application_data(n):
+    """
+    Генерация списка объектов Application.
+
+    :param n: Количество объектов для генерации.
+    :yield: Объект Application.
+    """
+    from lib.orm import Application
+    for _ in range(n):
+        yield Application(app_name=random_string(255))
+
+def generate_user_data(n, app_ids):
+    """
+    Генерация списка объектов Users.
+
+    :param n: Количество объектов для генерации.
+    :param app_ids: Список идентификаторов приложений.
+    :yield: Объект Users.
+    """
+    from lib.orm import Users
+    now = datetime.now()
+    for _ in range(n):
+        yield Users(
+            full_name=random_string(100),
+            email=random_email(255),
+            password=random_string(100),
+            registration_date=random_date(now - timedelta(days=730), now).date(),
+            app_availability=random.choice(app_ids)
+        )
+
+def generate_modification_data(n, app_ids):
+    """
+    Генерация списка объектов Modification.
+
+    :param n: Количество объектов для генерации.
+    :param app_ids: Список идентификаторов приложений.
+    :yield: Объект Modification.
+    """
+    from lib.orm import Modification
+    for _ in range(n):
+        yield Modification(
+            mod_name=random_string(100),
+            mod_desc=random_string(255),
+            app_id=random.choice(app_ids)
+        )
+
+def generate_purchase_data(n, user_ids, mod_ids):
+    """
+    Генерация списка объектов Purchase.
+
+    :param n: Количество объектов для генерации.
+    :param user_ids: Список идентификаторов пользователей.
+    :param mod_ids: Список идентификаторов модификаций.
+    :yield: Объект Purchase.
+    """
+    from lib.orm import Purchase
+    now = datetime.now()
+    for _ in range(n):
+        yield Purchase(
+            user_id=random.choice(user_ids),
+            mod_id=random.choice(mod_ids),
+            purchase_date=random_date(now - timedelta(days=365), now).date()
+        )
+
+def generate_check_data(n, purchase_ids):
+    """
+    Генерация списка объектов Checks.
+
+    :param n: Количество объектов для генерации.
+    :param purchase_ids: Список идентификаторов покупок.
+    :yield: Объект Checks.
+    """
+    from lib.orm import Checks
+    for _ in range(n):
+        yield Checks(
+            purchase_id=random.choice(purchase_ids),
+            amount=random.uniform(1, 100),
+            payment_method=random_string(50)
+        )
+
+def generate_hwid_data(n, user_ids):
+    """
+    Генерация списка объектов HWID.
+
+    :param n: Количество объектов для генерации.
+    :param user_ids: Список идентификаторов пользователей.
+    :yield: Объект HWID.
+    """
+    from lib.orm import HWID
+    for _ in range(n):
+        yield HWID(
+            user_id=random.choice(user_ids),
+            processor=random_string(50),
+            videocard=random_string(50),
+            os_version=random_string(50),
+            os_type=random.choice(["32-bit", "64-bit"]),
+            disks=random_string(50),
+            network_card=random_string(50)
+        )
+
+def generate_operation_data(n, user_ids):
+    """
+    Генерация списка объектов Operation.
+
+    :param n: Количество объектов для генерации.
+    :param user_ids: Список идентификаторов пользователей.
+    :yield: Объект Operation.
+    """
+    from lib.orm import Operation
+    now = datetime.now()
+    for _ in range(n):
+        yield Operation(
+            user_id=random.choice(user_ids),
+            operation_type=random_string(100),
+            operation_date=random_date(now - timedelta(days=365), now)
+        )
+
+def generate_subscription_data(n, user_ids, mod_ids):
+    """
+    Генерация списка объектов Subscription.
+
+    :param n: Количество объектов для генерации.
+    :param user_ids: Список идентификаторов пользователей.
+    :param mod_ids: Список идентификаторов модификаций.
+    :yield: Объект Subscription.
+    """
+    from lib.orm import Subscription
+    now = datetime.now()
+    for _ in range(n):
+        yield Subscription(
+            user_id=random.choice(user_ids),
+            mod_id=random.choice(mod_ids),
+            subscription_time=random_date(now - timedelta(days=365), now)
+        )
+
+def generate_token_data(n, user_ids, hwid_ids):
+    """
+    Генерация списка объектов Token.
+
+    :param n: Количество объектов для генерации.
+    :param user_ids: Список идентификаторов пользователей.
+    :param hwid_ids: Список идентификаторов HWID.
+    :yield: Объект Token.
+    """
+    from lib.orm import Token
+    now = datetime.now()
+    for _ in range(n):
+        yield Token(
+            user_id=random.choice(user_ids),
+            hwid_id=random.choice(hwid_ids),
+            last_login=random_date(now - timedelta(days=365), now)
+        )
+
+def generate_version_data(n, mod_ids):
+    """
+    Генерация списка объектов Version.
+
+    :param n: Количество объектов для генерации.
+    :param mod_ids: Список идентификаторов модификаций.
+    :yield: Объект Version.
+    """
+    from lib.orm import Version
+    for _ in range(n):
+        yield Version(
+            mod_id=random.choice(mod_ids),
+            version_number=random_int(1, 10),
+            version_name=random_string(50),
+            version_description=random_string(255),
+            version_link=f"http://link{random_string(240)}.com"[:255]  # ограничиваем длину строки до 255 символов
+        )
+Файл lib/__init__.py:
+
+
+Файл lib/plot_utils.py:
+
+import matplotlib.pyplot as plt
+
+def save_plot(x_values, y_values, labels, title, xlabel, ylabel, filename, formats=('png',), figsize=(10, 6)):
+    """
+    Построение и сохранение графика с несколькими линиями.
+
+    :param x_values: Список значений по оси X.
+    :param y_values: Список списков значений по оси Y для каждой линии.
+    :param labels: Список меток для каждой линии.
+    :param title: Название графика.
+    :param xlabel: Подпись оси X.
+    :param ylabel: Подпись оси Y.
+    :param filename: Имя файла для сохранения графика (без расширения).
+    :param formats: Форматы для сохранения (например, ['png', 'svg']).
+    :param figsize: Размер фигуры графика.
+    """
+    
+    # Устанавливаем стили линий и маркеров для графика
+    linestyles = ['-', '--', '-.', ':']
+    markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*']
+    plt.figure(figsize=figsize)
+
+    # Проходимся по каждому набору данных и строим линии
+    for i, (y, label) in enumerate(zip(y_values, labels)):
+        linestyle = linestyles[i % len(linestyles)]
+        marker = markers[i % len(markers)] if len(x_values) < 10 else None
+        plt.plot(x_values, y, label=label, linestyle=linestyle, marker=marker)
+
+    # Устанавливаем заголовок, подписи осей и легенду, включаем сетку
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.grid(True)
+
+    # Сохраняем график в указанных форматах
+    for fmt in formats:
+        plt.savefig(f'{filename}.{fmt}')
+    
+    # Закрываем фигуру
+    plt.close()
+Файл lib/db.py:
+
+import psycopg2
+from psycopg2 import sql
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+from contextlib import contextmanager
+import subprocess
+import os
+
+class Database:
+    """
+    Класс для работы с базой данных PostgreSQL, включающий методы для создания, удаления, клонирования базы данных и работы с дампами.
+
+    Атрибуты:
+    - dbname (str): Имя базы данных.
+    - user (str): Пользователь базы данных. По умолчанию 'postgres'.
+    - password (str): Пароль пользователя базы данных.
+    - host (str): Хост базы данных. По умолчанию 'localhost'.
+    - port (int): Порт базы данных. По умолчанию 5432.
+
+    Методы:
+    - __init__: Инициализация объекта базы данных и проверка ее существования.
+    - __enter__: Контекстный менеджер для открытия соединения с базой данных.
+    - __exit__: Закрытие соединения с базой данных.
+    - _ensure_database: Проверка существования и создание базы данных.
+    - get_connection: Контекстный менеджер для получения соединения.
+    - get_cursor: Контекстный менеджер для получения курсора.
+    - create_db: Создание новой базы данных.
+    - drop_db: Удаление базы данных.
+    - clone_schema: Клонирование схемы из одной базы данных в другую.
+    - create_dump: Создание дампа базы данных или таблицы.
+    - restore_dump: Восстановление данных из дампа.
+    - delete_all_data: Удаление всех данных из таблицы.
+    - replace_all_data: Замена всех данных в таблице.
+    """
+
+    # Инициализация объекта базы данных и проверка/создание базы данных
+    def __init__(self, dbname, user='postgres', password='secret6g2h2', host='localhost', port=5432):
+        """
+        Инициализация объекта базы данных.
+
+        :param dbname: Имя базы данных.
+        :param user: Пользователь базы данных. По умолчанию 'postgres'.
+        :param password: Пароль пользователя. По умолчанию 'secret6g2h2'.
+        :param host: Хост базы данных. По умолчанию 'localhost'.
+        :param port: Порт базы данных. По умолчанию 5432.
+        """
+        self.dbname = dbname
+        self.user = user
+        self.password = password
+        self.host = host
+        self.port = port
+
+        # Проверка существования и создание базы данных
+        self._ensure_database()
+
+    # Контекстный менеджер для открытия соединения
+    def __enter__(self):
+        """
+        Открытие соединения с базой данных.
+
+        :return: self
+        """
+        self.conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password, host=self.host, port=self.port)
+        self.conn.autocommit = True
+        return self
+
+    # Закрытие соединения
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Закрытие соединения с базой данных.
+        """
+        self.conn.close()
+
+    # Проверка существования и создание базы данных
+    def _ensure_database(self):
+        """
+        Проверка существования базы данных и создание её при отсутствии.
+        """
+        conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.autocommit = True
+        cursor = conn.cursor()
+        
+        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = '{self.dbname}'")
+        exists = cursor.fetchone()
+        if not exists:
+            cursor.execute(f'CREATE DATABASE "{self.dbname}"')
+        
+        cursor.close()
+        conn.close()
+
+    # Контекстный менеджер для получения соединения
+    @contextmanager
+    def get_connection(self):
+        """
+        Контекстный менеджер для получения соединения с базой данных.
+
+        :yield: Соединение с базой данных.
+        """
+        conn = psycopg2.connect(dbname=self.dbname, user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.autocommit = True
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    # Контекстный менеджер для получения курсора
+    @contextmanager
+    def get_cursor(self):
+        """
+        Контекстный менеджер для получения курсора.
+
+        :yield: Курсор для выполнения SQL-запросов.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                yield cursor
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                raise e
+            finally:
+                cursor.close()
+
+    # Создание новой базы данных
+    def create_db(self, db_name):
+        """
+        Создание новой базы данных с заданным именем.
+
+        :param db_name: Имя новой базы данных.
+        """
+        conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        try:
+            with conn.cursor() as cursor:
+                create_db_sql = sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name))
+                cursor.execute(create_db_sql)
+        except Exception as e:
+            print(f"Error creating database: {e}")
+        finally:
+            conn.close()
+
+    # Удаление базы данных
+    def drop_db(self, db_name):
+        """
+        Удаление базы данных с заданным именем.
+
+        :param db_name: Имя базы данных для удаления.
+        """
+        with psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port) as conn:
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    sql.SQL("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=%s AND pid <> pg_backend_pid()"),
+                    [db_name]
+                )
+
+        conn = psycopg2.connect(dbname='postgres', user=self.user, password=self.password, host=self.host, port=self.port)
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        try:
+            with conn.cursor() as cursor:
+                drop_db_sql = sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(db_name))
+                cursor.execute(drop_db_sql)
+        except Exception as e:
+            print(f"Error dropping database: {e}")
+        finally:
+            conn.close()
+
+    # Клонирование схемы из одной базы данных в другую
+    def clone_schema(self, source_db, target_db):
+        """
+        Клонирование схемы из исходной базы данных в целевую базу данных.
+
+        :param source_db: Имя исходной базы данных.
+        :param target_db: Имя целевой базы данных.
+        """
+        source_conn = psycopg2.connect(dbname=source_db, user=self.user, password=self.password, host=self.host, port=self.port)
+        target_conn = psycopg2.connect(dbname=target_db, user=self.user, password=self.password, host=self.host, port=self.port)
+        
+        source_conn.autocommit = True
+        target_conn.autocommit = True
+        
+        source_cur = source_conn.cursor()
+        target_cur = target_conn.cursor()
+
+        source_cur.execute("""SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'""")
+        tables = source_cur.fetchall()
+
+        for table in tables:
+            source_cur.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table[0]}'")
+            columns = source_cur.fetchall()
+            columns_def = ", ".join([f"{col[0]} {col[1]}" for col in columns])
+            target_cur.execute(f"CREATE TABLE {table[0]} ({columns_def})")
+
+        source_cur.close()
+        target_cur.close()
+        source_conn.close()
+        target_conn.close()
+
+    # Создание дампа базы данных или таблицы
+    def create_dump(self, output_file, table_name=None):
+        """
+        Создание дампа базы данных или заданной таблицы с использованием pg_dump.
+
+        :param output_file: Имя файла для сохранения дампа.
+        :param table_name: Имя таблицы для создания дампа (если None, создается дамп всей базы данных).
+        """
+        env = os.environ.copy()
+        env['PGPASSWORD'] = self.password
+
+        cmd = [
+            'pg_dump',
+            '-h', self.host,
+            '-p', str(self.port),
+            '-U', self.user,
+            '-F', 'c',
+            '-f', output_file,
+            self.dbname
+        ]
+        if table_name:
+            cmd += ['-t', table_name]
+
+        subprocess.run(cmd, env=env, check=True)
+
+    # Восстановление данных из дампа
+    def restore_dump(self, input_file, table_name=None):
+        """
+        Восстановление данных в базе данных из дампа с использованием pg_restore.
+
+        :param input_file: Имя файла дампа.
+        :param table_name: Имя таблицы для восстановления (если None, восстанавливается вся база данных).
+        """
+        env = os.environ.copy()
+        env['PGPASSWORD'] = self.password
+
+        cmd = [
+            'pg_restore',
+            '-h', self.host,
+            '-p', str(self.port),
+            '-U', self.user,
+            '-d', self.dbname,
+            '-c',  # Очищает базу данных перед восстановлением
+        ]
+        if table_name:
+            cmd += ['-t', table_name]
+
+        cmd += [input_file]
+
+        subprocess.run(cmd, env=env, check=True)
+
+    # Удаление всех данных из указанной таблицы
+    def delete_all_data(self, table_name):
+        """
+        Удаление всех данных из указанной таблицы.
+
+        :param table_name: Имя таблицы.
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table_name}")
+
+    # Замена всех данных в указанной таблице
+    def replace_all_data(self, table_name, data):
+        """
+        Замена всех данных в указанной таблице.
+
+        :param table_name: Имя таблицы.
+        :param data: Новые данные для вставки.
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute(f"DELETE FROM {table_name}")
+            for row in data:
+                columns = ', '.join(row.keys())
+                values = ', '.join([f"'{str(v)}'" for v in row.values()])
+                cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES ({values})")
+Файл __init__.py:
+
+
+Файл tests/test_orm.py:
+
+import sys
+import os
+
+# Добавляем путь к родительской директории для корректного импорта модулей
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import pytest
+from datetime import datetime
+from lib.data_generator import (
+    generate_application_data,
+    generate_user_data,
+    generate_modification_data,
+    generate_purchase_data,
+    generate_check_data,
+    generate_hwid_data,
+    generate_operation_data,
+    generate_subscription_data,
+    generate_token_data,
+    generate_version_data
+)
+from lib.db import Database
+from lib.orm import (
+    Application,
+    Users,
+    Modification,
+    Purchase,
+    Checks,
+    HWID,
+    Operation,
+    Subscription,
+    Token,
+    Version
+)
+
+DATABASE_NAME = 'test_db'  # имя тестовой базы данных для тестов
+
+@pytest.fixture(scope='module')
+def db():
+    test_db = Database(DATABASE_NAME)
+    test_db._ensure_database()
+
+    with test_db as connection:
+        yield connection
+
+    test_db.drop_db(DATABASE_NAME)
+
+@pytest.fixture(autouse=True)
+def setup_and_teardown(db):
+    # Создание таблиц перед каждым тестом
+    Application.create_table(db)
+    Modification.create_table(db)
+    Users.create_table(db)
+    Purchase.create_table(db)
+    Checks.create_table(db)
+    HWID.create_table(db)
+    Operation.create_table(db)
+    Subscription.create_table(db)
+    Token.create_table(db)
+    Version.create_table(db)
+
+    Users.create_many_to_many_tables(db)
+
+    yield
+    
+    # Удаление данных в правильной последовательности для избежания ошибкок внешнего ключа
+    tables = ['checks', 'purchase', 'subscription', 'token', 'operation', 'hwid', 'version', 'users_modification', 'modification', 'users', 'application']
+    for table in tables:
+        db.delete_all_data(table)
+
+def test_application_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    apps = Application.get_all(db)
+    assert len(apps) == 1
+    assert apps[0].app_name == "Test Application"
+
+def test_users_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+
+    users = Users.get_all(db)
+    assert len(users) == 1
+    assert users[0].full_name == "John Doe"
+
+def test_modification_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    mod = Modification(
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+
+    mods = Modification.get_all(db)
+    assert len(mods) == 1
+    assert mods[0].mod_name == "Test Modification"
+
+def test_purchase_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    mod = Modification(
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+    mod_id = mod.mod_id
+
+    purchase = Purchase(
+        user_id=user_id,
+        mod_id=mod_id,
+        purchase_date=datetime.now().date()
+    )
+    purchase.save(db)
+
+    purchases = Purchase.get_all(db)
+    assert len(purchases) == 1
+    assert purchases[0].user_id == user_id
+
+def test_checks_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    mod = Modification(
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+    mod_id = mod.mod_id
+
+    purchase = Purchase(
+        user_id=user_id,
+        mod_id=mod_id,
+        purchase_date=datetime.now().date()
+    )
+    purchase.save(db)
+    purchase_id = purchase.purchase_id
+
+    checks = Checks(
+        purchase_id=purchase_id,
+        amount=99.99,
+        payment_method="Credit Card"
+    )
+    checks.save(db)
+
+    all_checks = Checks.get_all(db)
+    assert len(all_checks) == 1
+    assert float(all_checks[0].amount) == 99.99
+
+def test_hwid_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    hwid = HWID(
+        user_id=user_id,
+        processor="Intel",
+        videocard="NVIDIA",
+        os_version="Windows 10",
+        os_type="64-bit",
+        disks="1TB SSD",
+        network_card="Intel Ethernet"
+    )
+    hwid.save(db)
+
+    hwids = HWID.get_all(db)
+    assert len(hwids) == 1
+    assert hwids[0].processor == "Intel"
+
+def test_operation_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    operation = Operation(
+        user_id=user_id,
+        operation_type="LOGIN",
+        operation_date=datetime.now()
+    )
+    operation.save(db)
+
+    operations = Operation.get_all(db)
+    assert len(operations) == 1
+    assert operations[0].operation_type == "LOGIN"
+
+def test_subscription_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    mod = Modification(
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+    mod_id = mod.mod_id
+
+    subscription = Subscription(
+        user_id=user_id,
+        mod_id=mod_id,
+        subscription_time=datetime.now()
+    )
+    subscription.save(db)
+
+    subscriptions = Subscription.get_all(db)
+    assert len(subscriptions) == 1
+    assert subscriptions[0].user_id == user_id
+
+def test_token_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+
+    hwid = HWID(
+        user_id=user_id,
+        processor="Intel",
+        videocard="NVIDIA",
+        os_version="Windows 10",
+        os_type="64-bit",
+        disks="1TB SSD",
+        network_card="Intel Ethernet"
+    )
+    hwid.save(db)
+    hwid_id = hwid.hwid_id
+
+    token = Token(
+        user_id=user_id,
+        hwid_id=hwid_id,
+        last_login=datetime.now()
+    )
+    token.save(db)
+
+    tokens = Token.get_all(db)
+    assert len(tokens) == 1
+    assert tokens[0].user_id == user.user_id
+
+def test_version_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    mod = Modification(
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+    mod_id = mod.mod_id
+
+    version = Version(
+        mod_id=mod_id,
+        version_number=1,
+        version_name="v1.0",
+        version_description="Initial Release",
+        version_link="http://example.com/download"
+    )
+    version.save(db)
+
+    versions = Version.get_all(db)
+    assert len(versions) == 1
+    assert versions[0].version_name == "v1.0"
+
+def test_many_to_many_insert(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+    app_id = app.app_id
+
+    mod = Modification(
+        mod_id="1",
+        mod_name="Test Modification",
+        mod_desc="A test modification.",
+        app_id=app_id
+    )
+    mod.save(db)
+    mod_id = mod.mod_id
+
+    user = Users(
+        user_id="1",
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app_id
+    )
+    user.save(db)
+    user_id = user.user_id
+    
+    with db.get_cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO users_modification (user_id, mod_id) VALUES ({user_id}, {mod_id})"
+        )
+    
+    with db.get_cursor() as cursor:
+        cursor.execute("SELECT * FROM users_modification")
+        mm_records = cursor.fetchall()
+        assert len(mm_records) == 1
+        assert mm_records[0][0] == user_id
+        assert mm_records[0][1] == mod_id
+
+def test_generate_data(db):
+    apps = list(generate_application_data(1))
+    for app in apps:
+        app.save(db)
+    app_ids = [app.app_id for app in Application.get_all(db)]
+
+    users = list(generate_user_data(1, app_ids))
+    for user in users:
+        user.app_availability = app_ids[0]
+        user.save(db)
+    user_ids = [user.user_id for user in Users.get_all(db)]
+
+    mods = list(generate_modification_data(1, app_ids))
+    for mod in mods:
+        mod.save(db)
+    mod_ids = [mod.mod_id for mod in Modification.get_all(db)]
+
+    purchases = list(generate_purchase_data(1, user_ids, mod_ids))
+    for purchase in purchases:
+        purchase.save(db)
+    purchase_ids = [purchase.purchase_id for purchase in Purchase.get_all(db)]
+
+    checks = list(generate_check_data(1, purchase_ids))
+    for chk in checks:
+        chk.save(db)
+
+    hwids = list(generate_hwid_data(1, user_ids))
+    for hw in hwids:
+        hw.save(db)
+    hwid_ids = [hw.hwid_id for hw in HWID.get_all(db)]
+
+    operations = list(generate_operation_data(1, user_ids))
+    for operation in operations:
+        operation.save(db)
+
+    subscriptions = list(generate_subscription_data(1, user_ids, mod_ids))
+    for subscription in subscriptions:
+        subscription.save(db)
+    
+    tokens = list(generate_token_data(1, user_ids, hwid_ids))
+    for token in tokens:
+        token.save(db)
+
+    versions = list(generate_version_data(1, mod_ids))
+    for version in versions:
+        version.save(db)
+
+    assert len(Application.get_all(db)) == 1
+    assert len(Users.get_all(db)) == 1
+    assert len(Modification.get_all(db)) == 1
+    assert len(Purchase.get_all(db)) == 1
+    assert len(Checks.get_all(db)) == 1
+    assert len(HWID.get_all(db)) == 1
+    assert len(Operation.get_all(db)) == 1
+    assert len(Subscription.get_all(db)) == 1
+    assert len(Token.get_all(db)) == 1
+    assert len(Version.get_all(db)) == 1
+
+def test_filter_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    filtered_users = Users.filter(db, full_name="John Doe")
+    assert len(filtered_users) == 1
+    assert filtered_users[0].email == "john.doe@example.com"
+
+def test_update_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        user_id="47",
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    user.update(db, email="john.doe_new@example.com")
+    updated_user = Users.filter(db, full_name="John Doe")[0]
+    assert updated_user.email == "john.doe_new@example.com"
+
+def test_delete_method(db):
+    app = Application(app_name="Test Application")
+    app.save(db)
+
+    user = Users(
+        user_id="999",
+        full_name="John Doe",
+        email="john.doe@example.com",
+        password="password",
+        registration_date=datetime.now().date(),
+        app_availability=app.app_id
+    )
+    user.save(db)
+
+    user.delete(db)
+    users = Users.get_all(db)
+    assert len(users) == 0
+Файл tests/__init__.py:
+
+

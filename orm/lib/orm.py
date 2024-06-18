@@ -131,8 +131,9 @@ class Model(metaclass=ModelMeta):
         query = f'INSERT INTO {self.__class__.__name__.lower()} ({column_names}) VALUES ({placeholders}) RETURNING *;'
         with db.get_cursor() as cur:
             cur.execute(query, values)
-            if self.__class__.__dict__[columns[0]].primary_key:
-                setattr(self, columns[0], cur.fetchone()[0])
+            returned_values = cur.fetchone()
+            for key, value in zip(columns, returned_values):
+                setattr(self, key, value)
 
     @classmethod
     def get_all(cls, db):
@@ -145,6 +146,44 @@ class Model(metaclass=ModelMeta):
                 obj = cls(**dict(zip([col[0] for col in cur.description], record)))
                 results.append(obj)
             return results
+
+    @classmethod
+    def filter(cls, db, **kwargs):
+        conditions = [f"{key} = %s" for key in kwargs.keys()]
+        query = f"SELECT * FROM {cls.__name__.lower()} WHERE {' AND '.join(conditions)}"
+
+        with db.get_cursor() as cur:
+            cur.execute(query, tuple(kwargs.values()))
+            records = cur.fetchall()
+            results = []
+            for record in records:
+                obj = cls(**dict(zip([col[0] for col in cur.description], record)))
+                results.append(obj)
+            return results
+
+    def delete(self, db):
+        pk_name = Model.primary_keys[self.__class__.__name__.lower()]
+        query = f"DELETE FROM {self.__class__.__name__.lower()} WHERE {pk_name} = %s"
+        with db.get_cursor() as cur:
+            cur.execute(query, (getattr(self, pk_name),))
+
+    def update(self, db, **kwargs):
+        pk_name = Model.primary_keys[self.__class__.__name__.lower()]
+        set_clause = ", ".join([f"{key} = %s" for key in kwargs.keys()])
+        query = f"UPDATE {self.__class__.__name__.lower()} SET {set_clause} WHERE {pk_name} = %s"
+        values = tuple(kwargs.values()) + (getattr(self, pk_name),)
+        with db.get_cursor() as cur:
+            cur.execute(query, values)
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+            # Для получения обновленных значений после выполнения запроса
+            query = f"SELECT * FROM {self.__class__.__name__.lower()} WHERE {pk_name} = %s"
+            cur.execute(query, (getattr(self, pk_name),))
+            updated_record = cur.fetchone()
+            if updated_record:
+                for key, value in zip([col[0] for col in cur.description], updated_record):
+                    setattr(self, key, value)
 
 # Пример моделей
 class Application(Model):

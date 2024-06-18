@@ -26,7 +26,7 @@ from lib.plot_utils import save_plot
 # Настройка параметров исследования
 DATABASE_NAME = 'research_db'
 TABLES = [Application, Users, Modification, Purchase, Checks, HWID, Operation, Subscription, Token, Version]
-ROW_COUNTS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000]
+ROW_COUNTS = [100, 200, 300, 400, 500]
 REPEAT = 3  # Количество повторов для каждого замера
 
 def setup_sandbox(db_name):
@@ -73,29 +73,56 @@ def get_primary_key_name(model_class):
 
 # Функции для выполнения запросов
 def perform_queries(db, table):
-    table_name = table.__name__.lower()
     primary_key = get_primary_key_name(table)
     
-    queries = [
-        f"SELECT * FROM {table_name} LIMIT 10",
-        f"SELECT COUNT(*) FROM {table_name}",
-        f"SELECT * FROM {table_name} WHERE 1=2",  # Быстрый SELECT с условием, которое никогда не выполняется
-        f"SELECT * FROM {table_name} WHERE {primary_key} = 1",
-        f"SELECT * FROM {table_name} WHERE {primary_key} > 1",
-        f"INSERT INTO {table_name} DEFAULT VALUES",  # Пример INSERT для таблиц с автогенерируемыми id
-        f"DELETE FROM {table_name} WHERE 1=2",  # Быстрый DELETE с условием, которое никогда не выполняется
-        f"DELETE FROM {table_name} WHERE {primary_key} = 1",
-        f"DELETE FROM {table_name} WHERE {primary_key} > 1"
-    ]
-
+    data = generate_data_for_table(table, 1)[0]  # Генерировать одну запись для вставки
+    
     results = []
-    with db.get_cursor() as cur:
-        for query in queries:
+    
+    # Timing INSERT operation
+    start_time = timeit.default_timer()
+    data.save(db)
+    duration = timeit.default_timer() - start_time
+    results.append(duration)
+    
+    # Timing SELECT all operation with limit
+    start_time = timeit.default_timer()
+    records = table.get_all(db)
+    duration = timeit.default_timer() - start_time
+    results.append(duration)
+    
+    # Timing SELECT COUNT(*) 
+    start_time = timeit.default_timer()
+    count = len(records)
+    duration = timeit.default_timer() - start_time
+    results.append(duration)
+    
+    # Timing SELECT with a condition that never matches
+    start_time = timeit.default_timer()
+    no_match = table.filter(db, **{primary_key: -1})
+    duration = timeit.default_timer() - start_time
+    results.append(duration)
+    
+    # Timing SELECT with a specific primary key
+    if records:
+        match_id = getattr(records[0], primary_key)
+        start_time = timeit.default_timer()
+        match = table.filter(db, **{primary_key: match_id})
+        duration = timeit.default_timer() - start_time
+        results.append(duration)
+    
+        # Timing UPDATE operation
+        if match and len(records[0].__dict__.keys()) > 1:
+            updated_field = {list(records[0].__dict__.keys())[1]: "temp_value"}  # обновление второго поляв объекте
             start_time = timeit.default_timer()
-            try:
-                cur.execute(query)
-            except Exception as e:
-                print(f"Ошибка при выполнении запроса: {e}")
+            match[0].update(db, **updated_field)
+            duration = timeit.default_timer() - start_time
+            results.append(duration)
+    
+        # Timing DELETE with a specific primary key
+        if match:
+            start_time = timeit.default_timer()
+            match[0].delete(db)
             duration = timeit.default_timer() - start_time
             results.append(duration)
     
@@ -204,8 +231,11 @@ def measure_query_times():
         for count in ROW_COUNTS:
             # Замените данные в таблице заданного количества строк
             data = generate_data_for_table(table, count)
-            for row in data:
-                row.save(db)
+            with db.get_cursor() as cur:
+                table_name = table.__name__.lower()
+                cur.execute(f'DELETE FROM {table_name}')
+                for record in data:
+                    record.save(db)
 
             query_times = perform_queries(db, table)
             for i, query_time in enumerate(query_times):
@@ -216,39 +246,20 @@ def measure_query_times():
     return results
 
 def plot_results(results, plot_title, x_label, y_label, filename):
-    """
-    Построение графика для всех таблиц.
+    labels = list(results.keys())
+    x_values = ROW_COUNTS
+    y_values = [results[label] for label in labels]
     
-    :param results: Словарь результатов.
-    :param plot_title: Заголовок графика.
-    :param x_label: Подпись оси X.
-    :param y_label: Подпись оси Y.
-    :param filename: Имя файла для сохранения графика.
-    """
-    plt.figure(figsize=(12, 6))
-    for table, times in results.items():
-        plt.plot(ROW_COUNTS, times, label=table)
-    plt.title(plot_title)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(filename)
-    plt.close()
+    save_plot(x_values, y_values, labels, plot_title, x_label, y_label, filename)
 
 def plot_individual_query_times(results):
-    """
-    Построение отдельных графиков для каждого запроса.
-    
-    :param results: Словарь результатов времени выполнения запросов.
-    """
     for table, times_per_size in results.items():
         for query_index, times in times_per_size.items():
             plt.figure(figsize=(12, 6))
-            plt.plot(ROW_COUNTS, times, label=f"Query {query_index}")
-            plt.title(f"Query {query_index} Execution Times for {table}")
-            plt.xlabel('Number of Rows')
-            plt.ylabel('Execution Time (s)')
+            plt.plot(ROW_COUNTS, times, label=f"Запрос {query_index}")
+            plt.title(f"Время выполнения Запроса {query_index} для {table}")
+            plt.xlabel('Количество строк')
+            plt.ylabel('Время выполнения (с)')
             plt.legend()
             plt.grid(True)
             plt.savefig(f"{table}_query_{query_index}_times.png")
@@ -258,7 +269,7 @@ def plot_individual_query_times(results):
 if __name__ == "__main__":
     # Замер времени генерации данных
     generation_times = measure_generation_times()
-    plot_results(generation_times, "Generation Times", "Number of Rows", "Time (s)", "generation_times.png")
+    plot_results(generation_times, "Generation Times", "Number of Rows", "Time (s)", "generation_times")
 
     # Замер времени выполнения запросов
     query_times = measure_query_times()

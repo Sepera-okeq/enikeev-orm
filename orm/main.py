@@ -135,3 +135,8 @@ def create_dump(db, output_file):
     """
     db.create_dump(output_file)
     print(f"Дамп базы данных '{db.dbname}' создан в файле '{output_file}'.")
+
+if __name__ == "__main__":
+    db = create_source_db_and_tables()
+    generate_and_insert_data(db)
+    create_dump(db, "source_db_dump.sql")
