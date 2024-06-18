@@ -302,15 +302,7 @@ def plot_individual_query_times(results):
     """
     for table, times_per_size in results.items():
         for query_index, times in times_per_size.items():
-            plt.figure(figsize=(12, 6))
-            plt.plot(ROW_COUNTS, times, label=f"Запрос {query_index}")
-            plt.title(f"Время выполнения Запроса {query_index} для {table}")
-            plt.xlabel('Количество строк')
-            plt.ylabel('Время выполнения (с)')
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(f"{table}_query_{query_index}_times.png")
-            plt.close()
+            save_plot(ROW_COUNTS, [times], [f"Запрос {query_index}"], f"Время выполнения Запроса {query_index} для {table}", 'Количество строк', 'Время выполнения (с)', f"{table}_query_{query_index}_times.png")
 
 # Основной исполнимый код
 if __name__ == "__main__":

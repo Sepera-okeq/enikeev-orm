@@ -53,6 +53,7 @@ def generate_and_insert_data(db):
 
     :param db: Объект Database для подключения к базе данных.
     """
+    db.delete_all_data()
     print("Генерация данных...")
 
     # Генерация и вставка данных для модели Application
