@@ -364,7 +364,7 @@ class Version(Model):
     """
     version_id: FieldType.SERIAL, primary_key=True
     mod_id: FieldType.INT, foreign_key='modification(mod_id)', min_value=1, max_value=100
-    version_number: FieldType.VARCHAR, min_value=1, max_value=10
+    version_number: FieldType.INT, min_value=1, max_value=10
     version_name: FieldType.VARCHAR, max_length=50
     version_description: FieldType.VARCHAR, max_length=255
     version_link: FieldType.VARCHAR, max_length=255

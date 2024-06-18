@@ -327,7 +327,7 @@ def generate_version_data(n, mod_ids):
         
         yield Version(
             mod_id=random.choice(mod_ids),
-            version_number=version_number,
+            version_number=random_int(1, 200),
             version_name=version_name,
             version_description=random.choice(descriptions),
             version_link=f"http://new-version-{random_string(10)}.com"
