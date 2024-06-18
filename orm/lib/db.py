@@ -1,3 +1,28 @@
+"""
+Модуль для работы с базой данных PostgreSQL.
+
+Импорты:
+    - Импортируются необходимые модули и библиотеки.
+
+Классы:
+    - Database: Класс для работы с базой данных PostgreSQL.
+
+Методы:
+    - __init__: Инициализация объекта базы данных и проверка её существования.
+    - __enter__: Контекстный менеджер для открытия соединения с базой данных.
+    - __exit__: Закрытие соединения с базой данных.
+    - _ensure_database: Проверка существования и создание базы данных.
+    - get_connection: Контекстный менеджер для получения соединения.
+    - get_cursor: Контекстный менеджер для получения курсора.
+    - create_db: Создание новой базы данных.
+    - drop_db: Удаление базы данных.
+    - clone_schema: Клонирование схемы из одной базы данных в другую.
+    - create_dump: Создание дампа базы данных или таблицы.
+    - restore_dump: Восстановление данных из дампа.
+    - delete_all_data: Удаление всех данных из таблицы.
+    - replace_all_data: Замена всех данных в таблице.
+"""
+
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
@@ -17,7 +42,7 @@ class Database:
     - port (int): Порт базы данных. По умолчанию 5432.
 
     Методы:
-    - __init__: Инициализация объекта базы данных и проверка ее существования.
+    - __init__: Инициализация объекта базы данных и проверка её существования.
     - __enter__: Контекстный менеджер для открытия соединения с базой данных.
     - __exit__: Закрытие соединения с базой данных.
     - _ensure_database: Проверка существования и создание базы данных.
@@ -32,7 +57,6 @@ class Database:
     - replace_all_data: Замена всех данных в таблице.
     """
 
-    # Инициализация объекта базы данных и проверка/создание базы данных
     def __init__(self, dbname, user='postgres', password='secret6g2h2', host='localhost', port=5432):
         """
         Инициализация объекта базы данных.
@@ -52,7 +76,6 @@ class Database:
         # Проверка существования и создание базы данных
         self._ensure_database()
 
-    # Контекстный менеджер для открытия соединения
     def __enter__(self):
         """
         Открытие соединения с базой данных.
@@ -63,14 +86,12 @@ class Database:
         self.conn.autocommit = True
         return self
 
-    # Закрытие соединения
     def __exit__(self, exc_type, exc_value, traceback):
         """
         Закрытие соединения с базой данных.
         """
         self.conn.close()
 
-    # Проверка существования и создание базы данных
     def _ensure_database(self):
         """
         Проверка существования базы данных и создание её при отсутствии.
@@ -87,7 +108,6 @@ class Database:
         cursor.close()
         conn.close()
 
-    # Контекстный менеджер для получения соединения
     @contextmanager
     def get_connection(self):
         """
@@ -102,7 +122,6 @@ class Database:
         finally:
             conn.close()
 
-    # Контекстный менеджер для получения курсора
     @contextmanager
     def get_cursor(self):
         """
@@ -121,7 +140,6 @@ class Database:
             finally:
                 cursor.close()
 
-    # Создание новой базы данных
     def create_db(self, db_name):
         """
         Создание новой базы данных с заданным именем.
@@ -139,7 +157,6 @@ class Database:
         finally:
             conn.close()
 
-    # Удаление базы данных
     def drop_db(self, db_name):
         """
         Удаление базы данных с заданным именем.
@@ -165,7 +182,6 @@ class Database:
         finally:
             conn.close()
 
-    # Клонирование схемы из одной базы данных в другую
     def clone_schema(self, source_db, target_db):
         """
         Клонирование схемы из исходной базы данных в целевую базу данных.
@@ -196,7 +212,6 @@ class Database:
         source_conn.close()
         target_conn.close()
 
-    # Создание дампа базы данных или таблицы
     def create_dump(self, output_file, table_name=None):
         """
         Создание дампа базы данных или заданной таблицы с использованием pg_dump.
@@ -221,7 +236,6 @@ class Database:
 
         subprocess.run(cmd, env=env, check=True)
 
-    # Восстановление данных из дампа
     def restore_dump(self, input_file, table_name=None):
         """
         Восстановление данных в базе данных из дампа с использованием pg_restore.
@@ -247,7 +261,6 @@ class Database:
 
         subprocess.run(cmd, env=env, check=True)
 
-    # Удаление всех данных из указанной таблицы
     def delete_all_data(self, table_name):
         """
         Удаление всех данных из указанной таблицы.
@@ -257,7 +270,6 @@ class Database:
         with self.get_cursor() as cursor:
             cursor.execute(f"DELETE FROM {table_name}")
 
-    # Замена всех данных в указанной таблице
     def replace_all_data(self, table_name, data):
         """
         Замена всех данных в указанной таблице.

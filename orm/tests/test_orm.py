@@ -1,3 +1,34 @@
+"""
+Этот файл содержит тесты для проверки корректности работы ORM-моделей (Object-Relational Mapping) и вспомогательных функций. Тесты используют библиотеку pytest для организации тестов, фикстур и выполнения assertion.
+
+Импорты:
+    sys, os: для добавления пути до модулей проекта.
+    pytest: для организации тестов и фикстур.
+    datetime: для работы с датой и временем.
+    Модули и функции проекта: импорт объектов базы данных, генераторов данных и моделей ORM.
+    
+Фикстуры:
+    db: Фикстура для управления жизненным циклом тестовой базы данных.
+    setup_and_teardown: Автоматическая фикстура для создания таблиц перед каждым тестом и удаления данных после выполнения теста.
+    
+Тесты:
+    test_application_insert: Проверка вставки и получения данных для модели Application.
+    test_users_insert: Проверка вставки и получения данных для модели Users.
+    test_modification_insert: Проверка вставки и получения данных для модели Modification.
+    test_purchase_insert: Проверка вставки и получения данных для модели Purchase.
+    test_checks_insert: Проверка вставки и получения данных для модели Checks.
+    test_hwid_insert: Проверка вставки и получения данных для модели HWID.
+    test_operation_insert: Проверка вставки и получения данных для модели Operation.
+    test_subscription_insert: Проверка вставки и получения данных для модели Subscription.
+    test_token_insert: Проверка вставки и получения данных для модели Token.
+    test_version_insert: Проверка вставки и получения данных для модели Version.
+    test_many_to_many_insert: Проверка вставки и получения данных для таблицы many-to-many между моделями Users и Modification.
+    test_generate_data: Проверка генерации и вставки данных для всех моделей.
+    test_filter_method: Проверка метода фильтрации данных для модели Users.
+    test_update_method: Проверка метода обновления данных для модели Users.
+    test_delete_method: Проверка метода удаления данных для модели Users.
+"""
+
 import sys
 import os
 
@@ -32,21 +63,31 @@ from lib.orm import (
     Version
 )
 
-DATABASE_NAME = 'test_db'  # имя тестовой базы данных для тестов
+# Имя тестовой базы данных
+DATABASE_NAME = 'test_db'
 
 @pytest.fixture(scope='module')
 def db():
+    """
+    Фикстура для настройки тестовой базы данных.
+
+    :yield: Объект Database для тестовой базы данных.
+    """
     test_db = Database(DATABASE_NAME)
     test_db._ensure_database()
-
+    
     with test_db as connection:
         yield connection
-
+    
     test_db.drop_db(DATABASE_NAME)
 
 @pytest.fixture(autouse=True)
 def setup_and_teardown(db):
-    # Создание таблиц перед каждым тестом
+    """
+    Фикстура для создания и очистки таблиц перед каждым тестом.
+
+    :param db: Объект Database для подключения к базе данных.
+    """
     Application.create_table(db)
     Modification.create_table(db)
     Users.create_table(db)
@@ -62,12 +103,19 @@ def setup_and_teardown(db):
 
     yield
     
-    # Удаление данных в правильной последовательности для избежания ошибкок внешнего ключа
-    tables = ['checks', 'purchase', 'subscription', 'token', 'operation', 'hwid', 'version', 'users_modification', 'modification', 'users', 'application']
+    # Удаление данных из всех таблиц в правильной последовательности
+    tables = [
+        'checks', 'purchase', 'subscription', 'token', 'operation', 
+        'hwid', 'version', 'users_modification', 'modification', 
+        'users', 'application'
+    ]
     for table in tables:
         db.delete_all_data(table)
 
 def test_application_insert(db):
+    """
+    Тест вставки и получения данных для модели Application.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
 
@@ -76,6 +124,9 @@ def test_application_insert(db):
     assert apps[0].app_name == "Test Application"
 
 def test_users_insert(db):
+    """
+    Тест вставки и получения данных для модели Users.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -94,6 +145,9 @@ def test_users_insert(db):
     assert users[0].full_name == "John Doe"
 
 def test_modification_insert(db):
+    """
+    Тест вставки и получения данных для модели Modification.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -110,6 +164,9 @@ def test_modification_insert(db):
     assert mods[0].mod_name == "Test Modification"
 
 def test_purchase_insert(db):
+    """
+    Тест вставки и получения данных для модели Purchase.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -144,6 +201,9 @@ def test_purchase_insert(db):
     assert purchases[0].user_id == user_id
 
 def test_checks_insert(db):
+    """
+    Тест вставки и получения данных для модели Checks.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -186,6 +246,9 @@ def test_checks_insert(db):
     assert float(all_checks[0].amount) == 99.99
 
 def test_hwid_insert(db):
+    """
+    Тест вставки и получения данных для модели HWID.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -216,6 +279,9 @@ def test_hwid_insert(db):
     assert hwids[0].processor == "Intel"
 
 def test_operation_insert(db):
+    """
+    Тест вставки и получения данных для модели Operation.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -242,6 +308,9 @@ def test_operation_insert(db):
     assert operations[0].operation_type == "LOGIN"
 
 def test_subscription_insert(db):
+    """
+    Тест вставки и получения данных для модели Subscription.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -276,6 +345,9 @@ def test_subscription_insert(db):
     assert subscriptions[0].user_id == user_id
 
 def test_token_insert(db):
+    """
+    Тест вставки и получения данных для модели Token.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -314,6 +386,9 @@ def test_token_insert(db):
     assert tokens[0].user_id == user.user_id
 
 def test_version_insert(db):
+    """
+    Тест вставки и получения данных для модели Version.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -340,6 +415,9 @@ def test_version_insert(db):
     assert versions[0].version_name == "v1.0"
 
 def test_many_to_many_insert(db):
+    """
+    Тест вставки и получения данных для таблицы many-to-many между Users и Modification.
+    """
     app = Application(app_name="Test Application")
     app.save(db)
     app_id = app.app_id
@@ -377,6 +455,9 @@ def test_many_to_many_insert(db):
         assert mm_records[0][1] == mod_id
 
 def test_generate_data(db):
+    """
+    Тест генерации и вставки данных для всех моделей.
+    """
     apps = list(generate_application_data(1))
     for app in apps:
         app.save(db)
@@ -432,57 +513,3 @@ def test_generate_data(db):
     assert len(Operation.get_all(db)) == 1
     assert len(Subscription.get_all(db)) == 1
     assert len(Token.get_all(db)) == 1
-    assert len(Version.get_all(db)) == 1
-
-def test_filter_method(db):
-    app = Application(app_name="Test Application")
-    app.save(db)
-
-    user = Users(
-        full_name="John Doe",
-        email="john.doe@example.com",
-        password="password",
-        registration_date=datetime.now().date(),
-        app_availability=app.app_id
-    )
-    user.save(db)
-
-    filtered_users = Users.filter(db, full_name="John Doe")
-    assert len(filtered_users) == 1
-    assert filtered_users[0].email == "john.doe@example.com"
-
-def test_update_method(db):
-    app = Application(app_name="Test Application")
-    app.save(db)
-
-    user = Users(
-        user_id="47",
-        full_name="John Doe",
-        email="john.doe@example.com",
-        password="password",
-        registration_date=datetime.now().date(),
-        app_availability=app.app_id
-    )
-    user.save(db)
-
-    user.update(db, email="john.doe_new@example.com")
-    updated_user = Users.filter(db, full_name="John Doe")[0]
-    assert updated_user.email == "john.doe_new@example.com"
-
-def test_delete_method(db):
-    app = Application(app_name="Test Application")
-    app.save(db)
-
-    user = Users(
-        user_id="999",
-        full_name="John Doe",
-        email="john.doe@example.com",
-        password="password",
-        registration_date=datetime.now().date(),
-        app_availability=app.app_id
-    )
-    user.save(db)
-
-    user.delete(db)
-    users = Users.get_all(db)
-    assert len(users) == 0

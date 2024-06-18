@@ -1,27 +1,23 @@
+"""
+Модуль для создания базы данных, генерации данных и создания дампа.
+
+Импорты:
+    - Импортируются все необходимые модели и генераторы данных из других модулей.
+
+Функции:
+    - create_source_db_and_tables: Создает базу данных и таблицы.
+    - generate_and_insert_data: Генерирует и вставляет данные в базу данных.
+    - create_dump: Создает дамп базы данных и сохраняет его в файл.
+"""
+
 from lib.db import Database
 from lib.orm import (
-    Application,
-    Users,
-    Modification,
-    Purchase,
-    Checks,
-    HWID,
-    Operation,
-    Subscription,
-    Token,
-    Version
+    Application, Users, Modification, Purchase, Checks, HWID, Operation, Subscription, Token, Version
 )
 from lib.data_generator import (
-    generate_application_data,
-    generate_user_data,
-    generate_modification_data,
-    generate_purchase_data,
-    generate_check_data,
-    generate_hwid_data,
-    generate_operation_data,
-    generate_subscription_data,
-    generate_token_data,
-    generate_version_data
+    generate_application_data, generate_user_data, generate_modification_data, generate_purchase_data, 
+    generate_check_data, generate_hwid_data, generate_operation_data, generate_subscription_data, 
+    generate_token_data, generate_version_data
 )
 
 def create_source_db_and_tables():

@@ -1,3 +1,23 @@
+"""
+Модуль для исследования производительности различных моделей и операций.
+
+Импорты:
+    - Подключаются необходимые модули и библиотеки для работы и визуализации данных.
+
+Функции:
+    - setup_sandbox: Создает песочницу для тестирования.
+    - generate_data_for_table: Генерация данных для таблиц.
+    - get_primary_key_name: Извлечение имени первичного ключа модели.
+    - perform_queries: Выполнение различных запросов для замера времени.
+    - measure_generate_time: Измерение времени генерации данных.
+    - measure_insert_time: Измерение времени вставки данных.
+    - measure_query_time: Измерение времени выполнения SQL-запроса.
+    - measure_generation_times: Замер времени генерации данных.
+    - measure_query_times: Замер времени выполнения запросов.
+    - plot_results: Построение и сохранение графика с несколькими линиями.
+    - plot_individual_query_times: Построение графиков времени выполнения запросов.
+"""
+
 import re
 import sys
 import os
@@ -8,16 +28,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import timeit
 import matplotlib.pyplot as plt
 from lib.data_generator import (
-    generate_application_data,
-    generate_user_data,
-    generate_modification_data,
-    generate_purchase_data,
-    generate_check_data,
-    generate_hwid_data,
-    generate_operation_data,
-    generate_subscription_data,
-    generate_token_data,
-    generate_version_data
+    generate_application_data, generate_user_data, generate_modification_data, generate_purchase_data, 
+    generate_check_data, generate_hwid_data, generate_operation_data, generate_subscription_data, 
+    generate_token_data, generate_version_data
 )
 from lib.db import Database
 from lib.orm import Application, Users, Modification, Purchase, Checks, HWID, Operation, Subscription, Token, Version, Model
@@ -44,6 +57,13 @@ def setup_sandbox(db_name):
 
 # Функции для генерации данных
 def generate_data_for_table(table, count):
+    """
+    Генерация данных для заданной таблицы.
+
+    :param table: Класс модели таблицы.
+    :param count: Количество записей для генерации.
+    :return: Список объектов модели.
+    """
     generator_map = {
         Application: generate_application_data,
         Users: lambda n: generate_user_data(n, [1]),
@@ -60,6 +80,12 @@ def generate_data_for_table(table, count):
 
 # Функция для извлечения имени первичного ключа
 def get_primary_key_name(model_class):
+    """
+    Извлечение имени первичного ключа для модели.
+
+    :param model_class: Класс модели.
+    :return: Имя первичного ключа.
+    """
     docstring = model_class.__doc__
     if docstring:
         field_definitions = re.findall(
@@ -73,37 +99,44 @@ def get_primary_key_name(model_class):
 
 # Функции для выполнения запросов
 def perform_queries(db, table):
+    """
+    Выполнение различных SQL-запросов для оценки производительности.
+
+    :param db: Объект Database для подключения к базе данных.
+    :param table: Класс модели таблицы.
+    :return: Список временных характеристик выполнения запросов.
+    """
     primary_key = get_primary_key_name(table)
     
     data = generate_data_for_table(table, 1)[0]  # Генерировать одну запись для вставки
     
     results = []
     
-    # Timing INSERT operation
+    # Время на вставку (INSERT)
     start_time = timeit.default_timer()
     data.save(db)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
-    # Timing SELECT all operation with limit
+    # Время на выборку всех записей (SELECT all)
     start_time = timeit.default_timer()
     records = table.get_all(db)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
-    # Timing SELECT COUNT(*) 
+    # Время на подсчёт записей (SELECT COUNT(*))
     start_time = timeit.default_timer()
     count = len(records)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
-    # Timing SELECT with a condition that never matches
+    # Время на выборку по условию, которое не подходит ни для одной записи
     start_time = timeit.default_timer()
     no_match = table.filter(db, **{primary_key: -1})
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
-    # Timing SELECT with a specific primary key
+    # Время на выборку по определённому первичному ключу
     if records:
         match_id = getattr(records[0], primary_key)
         start_time = timeit.default_timer()
@@ -111,15 +144,15 @@ def perform_queries(db, table):
         duration = timeit.default_timer() - start_time
         results.append(duration)
     
-        # Timing UPDATE operation
+        # Время на обновление (UPDATE)
         if match and len(records[0].__dict__.keys()) > 1:
-            updated_field = {list(records[0].__dict__.keys())[1]: "temp_value"}  # обновление второго поляв объекте
+            updated_field = {list(records[0].__dict__.keys())[1]: "temp_value"}  # обновление второго поле в объекте
             start_time = timeit.default_timer()
             match[0].update(db, **updated_field)
             duration = timeit.default_timer() - start_time
             results.append(duration)
     
-        # Timing DELETE with a specific primary key
+        # Время на удаление записи (DELETE)
         if match:
             start_time = timeit.default_timer()
             match[0].delete(db)
@@ -246,6 +279,15 @@ def measure_query_times():
     return results
 
 def plot_results(results, plot_title, x_label, y_label, filename):
+    """
+    Построение и сохранение графика с несколькими линиями.
+
+    :param results: Словарь результатов, где ключ - название таблицы, значение - список времен.
+    :param plot_title: Название графика.
+    :param x_label: Подпись оси X.
+    :param y_label: Подпись оси Y.
+    :param filename: Имя файла для сохранения графика (без расширения).
+    """
     labels = list(results.keys())
     x_values = ROW_COUNTS
     y_values = [results[label] for label in labels]
@@ -253,6 +295,11 @@ def plot_results(results, plot_title, x_label, y_label, filename):
     save_plot(x_values, y_values, labels, plot_title, x_label, y_label, filename)
 
 def plot_individual_query_times(results):
+    """
+    Построение графиков времени выполнения запросов для каждой таблицы.
+    
+    :param results: Словарь результатов выполнения запросов.
+    """
     for table, times_per_size in results.items():
         for query_index, times in times_per_size.items():
             plt.figure(figsize=(12, 6))
@@ -269,7 +316,7 @@ def plot_individual_query_times(results):
 if __name__ == "__main__":
     # Замер времени генерации данных
     generation_times = measure_generation_times()
-    plot_results(generation_times, "Generation Times", "Number of Rows", "Time (s)", "generation_times")
+    plot_results(generation_times, "Время генерации", "Количество строк", "Время (s)", "generation_times")
 
     # Замер времени выполнения запросов
     query_times = measure_query_times()

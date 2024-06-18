@@ -1,3 +1,14 @@
+"""
+Модуль для генерации данных для моделей.
+
+Импорты:
+    - Импортируются необходимые модули и библиотеки.
+
+Функции:
+    - Генерация случайных строк, email, дат, целых чисел.
+    - Генерация данных для каждой модели (Application, Users, Modification и т.д.)
+"""
+
 import random
 import string
 from datetime import datetime, timedelta
@@ -204,7 +215,7 @@ def generate_version_data(n, mod_ids):
     :param n: Количество объектов для генерации.
     :param mod_ids: Список идентификаторов модификаций.
     :yield: Объект Version.
-    """
+    """ 
     from lib.orm import Version
     for _ in range(n):
         yield Version(

@@ -1,3 +1,13 @@
+"""
+Модуль для построения и сохранения графиков.
+
+Импорты:
+    - Импортируется модуль matplotlib.pyplot для построения графиков.
+
+Функции:
+    - save_plot: Построение и сохранение графика с несколькими линиями.
+"""
+
 import matplotlib.pyplot as plt
 
 def save_plot(x_values, y_values, labels, title, xlabel, ylabel, filename, formats=('png',), figsize=(10, 6)):
@@ -15,27 +25,22 @@ def save_plot(x_values, y_values, labels, title, xlabel, ylabel, filename, forma
     :param figsize: Размер фигуры графика.
     """
     
-    # Устанавливаем стили линий и маркеров для графика
     linestyles = ['-', '--', '-.', ':']
     markers = ['o', 's', 'D', '^', 'v', '<', '>', 'p', '*']
     plt.figure(figsize=figsize)
 
-    # Проходимся по каждому набору данных и строим линии
     for i, (y, label) in enumerate(zip(y_values, labels)):
         linestyle = linestyles[i % len(linestyles)]
         marker = markers[i % len(markers)] if len(x_values) < 10 else None
         plt.plot(x_values, y, label=label, linestyle=linestyle, marker=marker)
 
-    # Устанавливаем заголовок, подписи осей и легенду, включаем сетку
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend()
     plt.grid(True)
 
-    # Сохраняем график в указанных форматах
     for fmt in formats:
         plt.savefig(f'{filename}.{fmt}')
     
-    # Закрываем фигуру
     plt.close()

@@ -1,7 +1,30 @@
+"""
+Модуль для определения моделей ORM (Object-Relational Mapping).
+
+Импорты:
+    - Импортируются необходимые модули и библиотеки.
+
+Классы:
+    - FieldType: Перечисление типов данных для полей.
+    - OperationType: Перечисление возможных типов операций (логин, логаут и т.д.)
+    - Field: Класс для определения полей модели.
+    - ModelMeta: Метакласс для динамического создания моделей.
+    - Model: Базовый класс модели с методами для работы с БД (CRUD операции).
+
+Примеры моделей:
+    - Application: Модель приложения.
+    - Users: Модель пользователей.
+    - Modification: Модель модификаций.
+    - Purchase, Checks, HWID, Operation, Subscription, Token, Version: Другие модели для различных данных.
+"""
+
 import re
 from enum import Enum
 
 class FieldType(Enum):
+    """
+    Перечисление типов данных для полей модели.
+    """
     INT = "INT"
     SERIAL = "SERIAL"
     VARCHAR = "VARCHAR"
@@ -10,12 +33,27 @@ class FieldType(Enum):
     DECIMAL = "DECIMAL(10,2)"
 
 class OperationType(Enum):
+    """
+    Перечисление типов операций.
+    """
     LOGIN = "LOGIN"
     LOGOUT = "LOGOUT"
     PURCHASE = "PURCHASE"
     UPDATE_PROFILE = "UPDATE_PROFILE"
 
 class Field:
+    """
+    Класс для определения поля модели.
+
+    Атрибуты:
+        - type: Тип данных поля.
+        - primary_key: Является ли поле первичным ключом.
+        - foreign_key: Внешний ключ, если есть.
+        - max_length: Максимальная длина для строковых полей.
+        - min_value: Минимальное значение для числовых полей.
+        - max_value: Максимальное значение для числовых полей.
+        - many_to_many: Является ли поле отношением many-to-many.
+    """
     def __init__(self, type_, primary_key=False, foreign_key=None, max_length=None, min_value=None, max_value=None, many_to_many=False):
         if not isinstance(type_, FieldType):
             raise ValueError("Field type must be an instance of FieldType Enum")
@@ -28,6 +66,9 @@ class Field:
         self.many_to_many = many_to_many
 
 class ModelMeta(type):
+    """
+    Метакласс для динамической генерации моделей.
+    """
     def __new__(cls, name, bases, dct):
         docstring = dct.get('__doc__')
         if docstring:
@@ -53,6 +94,10 @@ class ModelMeta(type):
         super(ModelMeta, cls).__init__(name, bases, dct)
 
 class Model(metaclass=ModelMeta):
+    """
+    Базовый класс для моделей. Определяет методы сохранения, удаления, обновления 
+    и получения данных из базы данных.
+    """
     primary_keys = {}  # глобальный словарь для хранения первичных ключей каждой таблицы
     many_to_many_tables = []  # глобальный список для хранения таблиц many-to-many
 
@@ -65,6 +110,11 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def create_table(cls, db):
+        """
+        Создание таблицы для модели.
+
+        :param db: Объект Database для подключения к базе данных.
+        """
         fields = []
 
         for attr, value in cls.__dict__.items():
@@ -87,11 +137,24 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def create_many_to_many_tables(cls, db):
+        """
+        Создание таблиц для отношений many-to-many.
+
+        :param db: Объект Database для подключения к базе данных.
+        """
         for table1, field1, table2, field2 in Model.many_to_many_tables:
             cls.create_many_to_many_table(db, table1, table2, Model.primary_keys)
 
     @staticmethod
     def create_many_to_many_table(db, table1, table2, primary_keys):
+        """
+        Статический метод для создания таблицы many-to-many.
+
+        :param db: Объект Database для подключения к базе данных.
+        :param table1: Первая таблица.
+        :param table2: Вторая таблица.
+        :param primary_keys: Словарь первичных ключей.
+        """
         table_name = f'{table1}_{table2}'
         table1_pk = primary_keys[table1]
         table2_pk = primary_keys[table2]
@@ -106,6 +169,11 @@ class Model(metaclass=ModelMeta):
             cur.execute(query)
 
     def extract_field_values(self):
+        """
+        Извлечение значений полей для вставки или обновления.
+
+        :return: Список имен полей и список значений полей.
+        """
         columns = []
         values = []
         for attr, field in self.__class__.__dict__.items():
@@ -120,6 +188,11 @@ class Model(metaclass=ModelMeta):
         return columns, values
 
     def save(self, db):
+        """
+        Сохранение текущего объекта модели в базу данных.
+
+        :param db: Объект Database для подключения к базе данных.
+        """
         columns, values = self.extract_field_values()
 
         if not columns:
@@ -137,6 +210,12 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def get_all(cls, db):
+        """
+        Получение всех записей из таблицы.
+
+        :param db: Объект Database для подключения к базе данных.
+        :return: Список объектов модели.
+        """
         query = f'SELECT * FROM {cls.__name__.lower()};'
         with db.get_cursor() as cur:
             cur.execute(query)
@@ -149,6 +228,13 @@ class Model(metaclass=ModelMeta):
 
     @classmethod
     def filter(cls, db, **kwargs):
+        """
+        Фильтрация записей по заданным условиям.
+
+        :param db: Объект Database для подключения к базе данных.
+        :param kwargs: Словарь условий фильтрации.
+        :return: Список объектов модели, соответствующих условиям.
+        """
         conditions = [f"{key} = %s" for key in kwargs.keys()]
         query = f"SELECT * FROM {cls.__name__.lower()} WHERE {' AND '.join(conditions)}"
 
@@ -162,12 +248,23 @@ class Model(metaclass=ModelMeta):
             return results
 
     def delete(self, db):
+        """
+        Удаление текущего объекта модели из базы данных.
+
+        :param db: Объект Database для подключения к базе данных.
+        """
         pk_name = Model.primary_keys[self.__class__.__name__.lower()]
         query = f"DELETE FROM {self.__class__.__name__.lower()} WHERE {pk_name} = %s"
         with db.get_cursor() as cur:
             cur.execute(query, (getattr(self, pk_name),))
 
     def update(self, db, **kwargs):
+        """
+        Обновление полей текущего объекта модели в базе данных.
+
+        :param db: Объект Database для подключения к базе данных.
+        :param kwargs: Словарь полей и значений для обновления.
+        """
         pk_name = Model.primary_keys[self.__class__.__name__.lower()]
         set_clause = ", ".join([f"{key} = %s" for key in kwargs.keys()])
         query = f"UPDATE {self.__class__.__name__.lower()} SET {set_clause} WHERE {pk_name} = %s"
