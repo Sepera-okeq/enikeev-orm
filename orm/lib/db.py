@@ -261,6 +261,21 @@ class Database:
 
         subprocess.run(cmd, env=env, check=True)
 
+    def delete_all_data(self):
+        """
+        Удаляет все данные из всех таблиц базы данных.
+        """
+        with self.get_cursor() as cursor:
+            cursor.execute("""
+                DO $$ DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
+                        EXECUTE 'DELETE FROM ' || quote_ident(r.tablename);
+                    END LOOP;
+                END $$;
+            """)
+
     def delete_all_data(self, table_name):
         """
         Удаление всех данных из указанной таблицы.
@@ -283,18 +298,3 @@ class Database:
                 columns = ', '.join(row.keys())
                 values = ', '.join([f"'{str(v)}'" for v in row.values()])
                 cursor.execute(f"INSERT INTO {table_name} ({columns}) VALUES ({values})")
-    
-    def delete_all_data(self):
-        """
-        Удаляет все данные из всех таблиц базы данных.
-        """
-        with self.get_cursor() as cursor:
-            cursor.execute("""
-                DO $$ DECLARE
-                    r RECORD;
-                BEGIN
-                    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = current_schema()) LOOP
-                        EXECUTE 'DELETE FROM ' || quote_ident(r.tablename);
-                    END LOOP;
-                END $$;
-            """)

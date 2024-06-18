@@ -31,7 +31,7 @@ def save_plot(x_values, y_values, labels, title, xlabel, ylabel, filename, forma
 
     for i, (y, label) in enumerate(zip(y_values, labels)):
         linestyle = linestyles[i % len(linestyles)]
-        marker = markers[i % len(markers)] if len(x_values) < 10 else None
+        marker = markers[i % len(markers)] if len(x_values) > 10 else None
         plt.plot(x_values, y, label=label, linestyle=linestyle, marker=marker)
 
     plt.title(title)

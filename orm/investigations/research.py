@@ -39,7 +39,7 @@ from lib.plot_utils import save_plot
 # Настройка параметров исследования
 DATABASE_NAME = 'research_db'
 TABLES = [Application, Users, Modification, Purchase, Checks, HWID, Operation, Subscription, Token, Version]
-ROW_COUNTS = [100, 200, 300, 400, 500]
+ROW_COUNTS = list(range(10, 501, 35))
 REPEAT = 3  # Количество повторов для каждого замера
 
 def setup_sandbox(db_name):
@@ -302,7 +302,7 @@ def plot_individual_query_times(results):
     """
     for table, times_per_size in results.items():
         for query_index, times in times_per_size.items():
-            save_plot(ROW_COUNTS, [times], [f"Запрос {query_index}"], f"Время выполнения Запроса {query_index} для {table}", 'Количество строк', 'Время выполнения (с)', f"{table}_query_{query_index}_times.png")
+            save_plot(ROW_COUNTS, [times], [f"Запрос {query_index}"], f"Время выполнения Запроса {query_index} для {table}", 'Количество строк', 'Время выполнения (с)', f"{table}_query_{query_index}_times")
 
 # Основной исполнимый код
 if __name__ == "__main__":
