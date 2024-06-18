@@ -281,6 +281,22 @@ class Model(metaclass=ModelMeta):
             if updated_record:
                 for key, value in zip([col[0] for col in cur.description], updated_record):
                     setattr(self, key, value)
+                    
+    @staticmethod
+    def rawsql(db, query, params):
+        """
+        Выполнение произвольного SQL-запроса.
+        
+        :param db: Объект Database для подключения к базе данных.
+        :param query: SQL-запрос.
+        :param params: Параметры запроса.
+        """
+        with db.get_cursor() as cur:
+            cur.execute(query, params)
+            if cur.description:
+                return cur.fetchall()
+            else:
+                return cur.rowcount
 
 # Пример моделей
 class Application(Model):

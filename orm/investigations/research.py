@@ -113,24 +113,28 @@ def perform_queries(db, table):
     results = []
     
     # Время на вставку (INSERT)
+    # INSERT INTO {table.__name__.lower()} ({', '.join(data.extract_field_values()[0])}) VALUES ({', '.join(['%s'] * len(data.extract_field_values()[0]))}) RETURNING *;"
     start_time = timeit.default_timer()
     data.save(db)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
     # Время на выборку всех записей (SELECT all)
+    # SELECT * FROM {table.__name__.lower()}
     start_time = timeit.default_timer()
     records = table.get_all(db)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
     # Время на подсчёт записей (SELECT COUNT(*))
+    # SELECT COUNT(*) FROM {table.__name__.lower()}
     start_time = timeit.default_timer()
     count = len(records)
     duration = timeit.default_timer() - start_time
     results.append(duration)
     
     # Время на выборку по условию, которое не подходит ни для одной записи
+    # SELECT * FROM {table.__name__.lower()} WHERE {primary_key} = %s"
     start_time = timeit.default_timer()
     no_match = table.filter(db, **{primary_key: -1})
     duration = timeit.default_timer() - start_time
@@ -158,6 +162,27 @@ def perform_queries(db, table):
             match[0].delete(db)
             duration = timeit.default_timer() - start_time
             results.append(duration)
+    
+    # Время на выборку по определённому первичному ключу при помощи rawsql
+    records = table.get_all(db)
+    if records:
+        match_id = getattr(records[0], primary_key)
+        start_time = timeit.default_timer()
+        Model.rawsql(db, f"SELECT * FROM {table.__name__.lower()} WHERE {primary_key} = %s", (match_id,))
+        duration = timeit.default_timer() - start_time
+        results.append(duration)
+        
+        # Время на обновление (UPDATE) при помощи rawsql
+        start_time = timeit.default_timer()
+        Model.rawsql(db, f"UPDATE {table.__name__.lower()} SET {list(records[0].__dict__.keys())[1]} = %s WHERE {primary_key} = %s", ("1", match_id))
+        duration = timeit.default_timer() - start_time
+        results.append(duration)
+        
+        # Время на удаление (DELETE) при помощи rawsql
+        start_time = timeit.default_timer()
+        Model.rawsql(db, f"DELETE FROM {table.__name__.lower()} WHERE {primary_key} = %s", (match_id,))
+        duration = timeit.default_timer() - start_time
+        results.append(duration)
     
     return results
 
